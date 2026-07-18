@@ -14,16 +14,16 @@ export async function createClient() {
           return cookieStore.getAll();
         },
         setAll(
-  cookiesToSet: {
-    name: string;
-    value: string;
-    options?: any;
-  }[]
-) { {
+          cookiesToSet: {
+            name: string;
+            value: string;
+            options?: any;
+          }[]
+        ) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
           } catch {
             // Called from a Server Component — middleware handles refresh.
           }
@@ -35,15 +35,18 @@ export async function createClient() {
 
 export async function getUser() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   return user;
 }
 
 export async function getProfile() {
   const supabase = await createClient();
   const user = await getUser();
+
   if (!user) return null;
 
   const { data: profile } = await supabase
