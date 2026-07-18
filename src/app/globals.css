@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 48 100% 99%;
+    --foreground: 220 13% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 18%;
+    --primary: 160 84% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 45 65% 95%;
+    --secondary-foreground: 160 84% 25%;
+    --muted: 45 30% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 45 65% 52%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 45 20% 90%;
+    --input: 45 20% 90%;
+    --ring: 160 84% 30%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 220 13% 10%;
+    --foreground: 45 30% 96%;
+    --card: 220 13% 13%;
+    --card-foreground: 45 30% 96%;
+    --popover: 220 13% 13%;
+    --popover-foreground: 45 30% 96%;
+    --primary: 160 70% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 18%;
+    --secondary-foreground: 45 30% 96%;
+    --muted: 220 13% 18%;
+    --muted-foreground: 220 9% 60%;
+    --accent: 45 65% 52%;
+    --accent-foreground: 220 13% 10%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 20%;
+    --input: 220 13% 20%;
+    --ring: 160 70% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-soft-lg hover:ring-1 hover:ring-gold/40;
+  }
+
+  .text-gradient-gold {
+    @apply bg-gradient-emerald-gold bg-clip-text text-transparent;
+  }
+}
