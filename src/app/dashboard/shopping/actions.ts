@@ -3,9 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-/* -------------------------------------------------
-   ADD SHOPPING ITEM
-------------------------------------------------- */
+function getNumber(formData: FormData, name: string) {
+  const value = Number(formData.get(name) || 0);
+
+  return Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
+}
 
 export async function addShoppingItem(
   formData: FormData
@@ -22,60 +26,42 @@ export async function addShoppingItem(
 
   const category = String(
     formData.get("category") || "Other"
-  ).trim();
+  );
 
   const quantity = Math.max(
     1,
-    Number(
-      formData.get("quantity") || 1
+    Math.floor(
+      getNumber(formData, "quantity") || 1
     )
   );
 
-  const estimatedPrice = Math.max(
-    0,
-    Number(
-      formData.get(
-        "estimated_price"
-      ) || 0
-    )
+  const price = getNumber(
+    formData,
+    "price"
   );
 
-  const actualPrice = Math.max(
-    0,
-    Number(
-      formData.get(
-        "actual_price"
-      ) || 0
-    )
+  const paid = Math.min(
+    getNumber(formData, "paid"),
+    price
   );
 
-  if (!eventId) {
+  if (!eventId || !name) {
     throw new Error(
-      "Event is required."
+      "Event and item name are required."
     );
   }
 
-  if (!name) {
-    throw new Error(
-      "Shopping item name is required."
-    );
-  }
-
-  const { error } =
-    await supabase
-      .from("shopping_items")
-      .insert({
-        event_id: eventId,
-        name,
-        category:
-          category || "Other",
-        quantity,
-        estimated_price:
-          estimatedPrice,
-        actual_price:
-          actualPrice,
-        purchased: false,
-      });
+  const { error } = await supabase
+    .from("shopping_items")
+    .insert({
+      event_id: eventId,
+      name,
+      category,
+      quantity,
+      price,
+      paid,
+      purchased: false,
+    });
 
   if (error) {
     console.error(
@@ -88,20 +74,16 @@ export async function addShoppingItem(
     );
   }
 
-  revalidatePath(
-    "/dashboard/shopping"
-  );
-
+  revalidatePath("/dashboard/shopping");
   revalidatePath(
     `/dashboard/shopping?event=${eventId}`
   );
 
   revalidatePath("/dashboard");
+  revalidatePath(
+    `/dashboard?event=${eventId}`
+  );
 }
-
-/* -------------------------------------------------
-   UPDATE SHOPPING ITEM
-------------------------------------------------- */
 
 export async function updateShoppingItem(
   formData: FormData
@@ -122,82 +104,50 @@ export async function updateShoppingItem(
 
   const category = String(
     formData.get("category") || "Other"
-  ).trim();
+  );
 
   const quantity = Math.max(
     1,
-    Number(
-      formData.get("quantity") || 1
+    Math.floor(
+      getNumber(formData, "quantity") || 1
     )
   );
 
-  const estimatedPrice = Math.max(
-    0,
-    Number(
-      formData.get(
-        "estimated_price"
-      ) || 0
-    )
+  const price = getNumber(
+    formData,
+    "price"
   );
 
-  const actualPrice = Math.max(
-    0,
-    Number(
-      formData.get(
-        "actual_price"
-      ) || 0
-    )
+  const paid = Math.min(
+    getNumber(formData, "paid"),
+    price
   );
-
-  const purchasedValue =
-    String(
-      formData.get(
-        "purchased"
-      ) || "false"
-    );
 
   const purchased =
-    purchasedValue === "true";
+    String(
+      formData.get("purchased") || "false"
+    ) === "true";
 
-  if (!id) {
+  if (!id || !eventId || !name) {
     throw new Error(
-      "Shopping item ID is required."
+      "Missing required shopping item information."
     );
   }
 
-  if (!eventId) {
-    throw new Error(
-      "Event is required."
-    );
-  }
-
-  if (!name) {
-    throw new Error(
-      "Shopping item name is required."
-    );
-  }
-
-  const { error } =
-    await supabase
-      .from("shopping_items")
-      .update({
-        name,
-        category:
-          category || "Other",
-        quantity,
-        estimated_price:
-          estimatedPrice,
-        actual_price:
-          actualPrice,
-        purchased,
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq(
-        "event_id",
-        eventId
-      );
+  const { error } = await supabase
+    .from("shopping_items")
+    .update({
+      name,
+      category,
+      quantity,
+      price,
+      paid,
+      purchased,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("event_id", eventId);
 
   if (error) {
     console.error(
@@ -210,20 +160,16 @@ export async function updateShoppingItem(
     );
   }
 
-  revalidatePath(
-    "/dashboard/shopping"
-  );
-
+  revalidatePath("/dashboard/shopping");
   revalidatePath(
     `/dashboard/shopping?event=${eventId}`
   );
 
   revalidatePath("/dashboard");
+  revalidatePath(
+    `/dashboard?event=${eventId}`
+  );
 }
-
-/* -------------------------------------------------
-   DELETE SHOPPING ITEM
-------------------------------------------------- */
 
 export async function deleteShoppingItem(
   id: string,
@@ -231,27 +177,17 @@ export async function deleteShoppingItem(
 ) {
   const supabase = (await createClient()) as any;
 
-  if (!id) {
+  if (!id || !eventId) {
     throw new Error(
-      "Shopping item ID is required."
+      "Missing shopping item information."
     );
   }
 
-  if (!eventId) {
-    throw new Error(
-      "Event is required."
-    );
-  }
-
-  const { error } =
-    await supabase
-      .from("shopping_items")
-      .delete()
-      .eq("id", id)
-      .eq(
-        "event_id",
-        eventId
-      );
+  const { error } = await supabase
+    .from("shopping_items")
+    .delete()
+    .eq("id", id)
+    .eq("event_id", eventId);
 
   if (error) {
     console.error(
@@ -264,20 +200,16 @@ export async function deleteShoppingItem(
     );
   }
 
-  revalidatePath(
-    "/dashboard/shopping"
-  );
-
+  revalidatePath("/dashboard/shopping");
   revalidatePath(
     `/dashboard/shopping?event=${eventId}`
   );
 
   revalidatePath("/dashboard");
+  revalidatePath(
+    `/dashboard?event=${eventId}`
+  );
 }
-
-/* -------------------------------------------------
-   TOGGLE PURCHASED STATUS
-------------------------------------------------- */
 
 export async function toggleShoppingItem(
   id: string,
@@ -286,31 +218,21 @@ export async function toggleShoppingItem(
 ) {
   const supabase = (await createClient()) as any;
 
-  if (!id) {
+  if (!id || !eventId) {
     throw new Error(
-      "Shopping item ID is required."
+      "Missing shopping item information."
     );
   }
 
-  if (!eventId) {
-    throw new Error(
-      "Event is required."
-    );
-  }
-
-  const { error } =
-    await supabase
-      .from("shopping_items")
-      .update({
-        purchased,
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq(
-        "event_id",
-        eventId
-      );
+  const { error } = await supabase
+    .from("shopping_items")
+    .update({
+      purchased,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("event_id", eventId);
 
   if (error) {
     console.error(
@@ -323,13 +245,13 @@ export async function toggleShoppingItem(
     );
   }
 
-  revalidatePath(
-    "/dashboard/shopping"
-  );
-
+  revalidatePath("/dashboard/shopping");
   revalidatePath(
     `/dashboard/shopping?event=${eventId}`
   );
 
   revalidatePath("/dashboard");
+  revalidatePath(
+    `/dashboard?event=${eventId}`
+  );
 }

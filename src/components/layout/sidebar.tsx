@@ -18,12 +18,12 @@ import {
   BarChart3,
   Settings,
   Heart,
+  Bell,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { APP_NAME } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
@@ -36,6 +36,7 @@ const iconMap = {
   Users,
   Store,
   BarChart3,
+  Bell,
   Settings,
 };
 
@@ -88,6 +89,12 @@ const navItems = [
     eventAware: true,
   },
   {
+    href: "/dashboard/notifications",
+    label: "Notifications",
+    icon: "Bell" as const,
+    eventAware: true,
+  },
+  {
     href: "/dashboard/settings",
     label: "Settings",
     icon: "Settings" as const,
@@ -108,9 +115,13 @@ export function Sidebar({
 
   const eventId = searchParams.get("event");
 
-  function getHref(item: (typeof navItems)[number]) {
+  function getHref(
+    item: (typeof navItems)[number]
+  ) {
     if (item.eventAware && eventId) {
-      return `${item.href}?event=${encodeURIComponent(eventId)}`;
+      return `${item.href}?event=${encodeURIComponent(
+        eventId
+      )}`;
     }
 
     return item.href;
@@ -120,10 +131,13 @@ export function Sidebar({
     <aside
       className={cn(
         "hidden lg:flex flex-col border-r bg-card/50 backdrop-blur-sm transition-all duration-300",
-        collapsed ? "w-[72px]" : "w-64"
+        collapsed
+          ? "w-[72px]"
+          : "w-64"
       )}
     >
       {/* Logo / Brand */}
+
       <div className="flex h-16 items-center gap-2 px-4">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-emerald-gold">
           <Heart
@@ -134,8 +148,12 @@ export function Sidebar({
 
         {!collapsed && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={{
+              opacity: 0,
+            }}
+            animate={{
+              opacity: 1,
+            }}
             className="overflow-hidden"
           >
             <p className="truncate font-display text-sm font-semibold leading-tight">
@@ -152,39 +170,69 @@ export function Sidebar({
       <Separator />
 
       {/* Navigation */}
+
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map((item) => {
-          const Icon = iconMap[item.icon];
+          const Icon =
+            iconMap[item.icon];
 
           const isActive =
             pathname === item.href ||
-            (item.href !== "/dashboard" &&
-              pathname.startsWith(item.href));
+            (item.href !==
+              "/dashboard" &&
+              pathname.startsWith(
+                item.href
+              ));
 
           const href = getHref(item);
+
+          const isNotifications =
+            item.href ===
+            "/dashboard/notifications";
 
           return (
             <Link
               key={item.href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
                   ? "bg-emerald/10 text-emerald-dark dark:text-emerald-light shadow-sm ring-1 ring-emerald/20"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                collapsed && "justify-center px-2"
+                collapsed &&
+                  "justify-center px-2"
               )}
-              title={collapsed ? item.label : undefined}
+              title={
+                collapsed
+                  ? item.label
+                  : undefined
+              }
             >
               <Icon
                 className={cn(
                   "h-5 w-5 shrink-0",
-                  isActive && "text-emerald"
+                  isActive &&
+                    "text-emerald"
                 )}
               />
 
               {!collapsed && (
-                <span>{item.label}</span>
+                <span className="flex-1">
+                  {item.label}
+                </span>
+              )}
+
+              {/* Notification indicator */}
+
+              {isNotifications && (
+                <span
+                  className={cn(
+                    "flex h-2.5 w-2.5 shrink-0 rounded-full bg-red-500",
+                    collapsed &&
+                      "absolute right-2 top-2"
+                  )}
+                  aria-label="Notifications available"
+                />
               )}
             </Link>
           );
@@ -192,6 +240,7 @@ export function Sidebar({
       </nav>
 
       {/* Collapse Button */}
+
       {onToggle && (
         <div className="border-t p-3">
           <Button
@@ -200,7 +249,8 @@ export function Sidebar({
             onClick={onToggle}
             className={cn(
               "w-full",
-              collapsed && "px-2"
+              collapsed &&
+                "px-2"
             )}
           >
             {collapsed ? (

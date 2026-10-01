@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
 import {
   ArrowLeft,
   CalendarHeart,
@@ -10,11 +11,26 @@ import {
   Store,
   ListTodo,
   TrendingUp,
+  Pencil,
+  Trash2,
+  Save,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  deleteEvent,
+  updateEvent,
+} from "../actions";
+
+import {
+  Card,
+  CardContent,
+} from "@/components/ui/card";
+
+import { Button } from "@/components/ui/button";
+
+export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{
@@ -22,14 +38,13 @@ interface Props {
   }>;
 }
 
-export const dynamic = "force-dynamic";
-
 type EventData = {
   id: string;
   name: string;
   slug: string;
   description: string | null;
   event_date: string | null;
+  event_type: string | null;
   color_gradient: string | null;
   completion_pct: number | null;
 };
@@ -43,10 +58,8 @@ export default async function EventDetailPage({
 }: Props) {
   const { slug } = await params;
 
-  // Supabase's current generated types are incorrectly
-  // inferring some tables as "never", so use a local
-  // untyped client for this page.
-  const supabase = (await createClient()) as any;
+  const supabase =
+    (await createClient()) as any;
 
   /* ---------------- EVENT ---------------- */
 
@@ -56,7 +69,10 @@ export default async function EventDetailPage({
     .eq("slug", slug)
     .single();
 
-  if (eventResult.error || !eventResult.data) {
+  if (
+    eventResult.error ||
+    !eventResult.data
+  ) {
     notFound();
   }
 
@@ -114,23 +130,28 @@ export default async function EventDetailPage({
   ]);
 
   const taskCount = Number(
-    (tasksResult as CountResult).count ?? 0
+    (tasksResult as CountResult)
+      .count ?? 0
   );
 
   const guestCount = Number(
-    (guestsResult as CountResult).count ?? 0
+    (guestsResult as CountResult)
+      .count ?? 0
   );
 
   const vendorCount = Number(
-    (vendorsResult as CountResult).count ?? 0
+    (vendorsResult as CountResult)
+      .count ?? 0
   );
 
   const shoppingCount = Number(
-    (shoppingResult as CountResult).count ?? 0
+    (shoppingResult as CountResult)
+      .count ?? 0
   );
 
   const budgetCount = Number(
-    (budgetResult as CountResult).count ?? 0
+    (budgetResult as CountResult)
+      .count ?? 0
   );
 
   /* ---------------- PROGRESS ---------------- */
@@ -139,34 +160,52 @@ export default async function EventDetailPage({
     100,
     Math.max(
       0,
-      Number(event.completion_pct ?? 0)
+      Number(
+        event.completion_pct ?? 0
+      )
     )
   );
 
   /* ---------------- DATE ---------------- */
 
-  let formattedDate = "Date not set";
+  let formattedDate =
+    "Date not set";
 
   if (event.event_date) {
-    const date = new Date(event.event_date);
+    const date = new Date(
+      event.event_date
+    );
 
-    if (!Number.isNaN(date.getTime())) {
-      formattedDate = date.toLocaleDateString(
-        "en-IN",
-        {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }
-      );
+    if (
+      !Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      formattedDate =
+        date.toLocaleDateString(
+          "en-IN",
+          {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          }
+        );
     }
   }
+
+  /* ---------------- EDIT DATE ---------------- */
+
+  const editDate = event.event_date
+    ? event.event_date.slice(0, 10)
+    : "";
 
   /* ---------------- LINKS ---------------- */
 
   const eventQuery =
-    `?event=${encodeURIComponent(event.id)}`;
+    `?event=${encodeURIComponent(
+      event.id
+    )}`;
 
   return (
     <div className="space-y-8">
@@ -184,39 +223,69 @@ export default async function EventDetailPage({
 
       <Card className="overflow-hidden">
         <div className="bg-gradient-emerald-gold p-6 text-white md:p-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="mb-3 flex items-center gap-2 text-white/80">
-                <CalendarHeart className="h-5 w-5" />
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="mb-3 flex items-center gap-2 text-white/80">
+                  <CalendarHeart className="h-5 w-5" />
 
-                <span className="text-sm font-medium">
-                  Event Workspace
-                </span>
+                  <span className="text-sm font-medium">
+                    Event Workspace
+                  </span>
+                </div>
+
+                <h1 className="font-display text-4xl font-bold md:text-5xl">
+                  {event.name}
+                </h1>
+
+                <p className="mt-3 text-white/90">
+                  {formattedDate}
+                </p>
+
+                {event.description && (
+                  <p className="mt-2 max-w-2xl text-sm text-white/80">
+                    {event.description}
+                  </p>
+                )}
               </div>
 
-              <h1 className="font-display text-4xl font-bold md:text-5xl">
-                {event.name}
-              </h1>
-
-              <p className="mt-3 text-white/90">
-                {formattedDate}
-              </p>
-
-              {event.description && (
-                <p className="mt-2 max-w-2xl text-sm text-white/80">
-                  {event.description}
+              <div className="text-left md:text-right">
+                <p className="text-sm text-white/80">
+                  Planning Progress
                 </p>
-              )}
+
+                <p className="mt-1 text-5xl font-bold">
+                  {progress}%
+                </p>
+              </div>
             </div>
 
-            <div className="text-center md:text-right">
-              <p className="text-sm text-white/80">
-                Planning Progress
-              </p>
+            {/* EVENT ACTIONS */}
 
-              <p className="mt-1 text-5xl font-bold">
-                {progress}%
-              </p>
+            <div className="flex flex-wrap gap-3 border-t border-white/20 pt-5">
+              <a
+                href="#edit-event"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-white/90"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit Event
+              </a>
+
+              <form
+                action={deleteEvent.bind(
+                  null,
+                  event.id
+                )}
+              >
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="border-white/50 bg-white/10 text-white hover:bg-red-500 hover:text-white"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Event
+                </Button>
+              </form>
             </div>
           </div>
         </div>
@@ -230,6 +299,161 @@ export default async function EventDetailPage({
               }}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* EDIT EVENT */}
+
+      <Card
+        id="edit-event"
+        className="scroll-mt-24"
+      >
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2">
+            <Pencil className="h-5 w-5 text-emerald-600" />
+
+            <div>
+              <h2 className="text-2xl font-bold">
+                Edit Event
+              </h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                Update the details of this event.
+              </p>
+            </div>
+          </div>
+
+          <form
+            action={updateEvent}
+            className="mt-6 space-y-5"
+          >
+            <input
+              type="hidden"
+              name="id"
+              value={event.id}
+            />
+
+            <div className="grid gap-5 md:grid-cols-2">
+              {/* EVENT NAME */}
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="event-name"
+                  className="text-sm font-medium"
+                >
+                  Event Name
+                </label>
+
+                <input
+                  id="event-name"
+                  name="name"
+                  defaultValue={event.name}
+                  required
+                  className="flex h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              {/* EVENT TYPE */}
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="event-type"
+                  className="text-sm font-medium"
+                >
+                  Event Type
+                </label>
+
+                <select
+                  id="event-type"
+                  name="event_type"
+                  defaultValue={
+                    event.event_type ||
+                    "Wedding"
+                  }
+                  className="flex h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="Wedding">
+                    Wedding
+                  </option>
+
+                  <option value="Nikah">
+                    Nikah
+                  </option>
+
+                  <option value="Reception">
+                    Reception
+                  </option>
+
+                  <option value="Mehendi">
+                    Mehendi
+                  </option>
+
+                  <option value="Haldi">
+                    Haldi
+                  </option>
+
+                  <option value="Engagement">
+                    Engagement
+                  </option>
+
+                  <option value="Other">
+                    Other
+                  </option>
+                </select>
+              </div>
+
+              {/* EVENT DATE */}
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="event-date"
+                  className="text-sm font-medium"
+                >
+                  Event Date
+                </label>
+
+                <input
+                  id="event-date"
+                  type="date"
+                  name="event_date"
+                  defaultValue={editDate}
+                  className="flex h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              {/* DESCRIPTION */}
+
+              <div className="space-y-2 md:col-span-2">
+                <label
+                  htmlFor="event-description"
+                  className="text-sm font-medium"
+                >
+                  Description
+                </label>
+
+                <textarea
+                  id="event-description"
+                  name="description"
+                  defaultValue={
+                    event.description || ""
+                  }
+                  rows={4}
+                  className="w-full rounded-lg border bg-background px-3 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="Add a short description for this event..."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Save Changes
+              </Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
 
@@ -305,8 +529,7 @@ export default async function EventDetailPage({
           </div>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Open any section to continue planning this
-            event.
+            Open any section to continue planning this event.
           </p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

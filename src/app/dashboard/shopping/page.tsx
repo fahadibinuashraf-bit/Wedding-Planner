@@ -4,10 +4,13 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  ShoppingBag,
-  Trash2,
+  CheckCircle2,
+  Circle,
   Pencil,
   Plus,
+  ShoppingBag,
+  Trash2,
+  Wallet,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
@@ -40,8 +43,8 @@ type ShoppingItem = {
   name: string;
   category: string;
   quantity: number;
-  estimated_price: number;
-  actual_price: number;
+  price: number;
+  paid: number;
   purchased: boolean;
 };
 
@@ -51,55 +54,58 @@ interface ShoppingPageProps {
   }>;
 }
 
+const categories = [
+  "Clothing",
+  "Gifts",
+  "Decoration",
+  "Jewellery",
+  "Food",
+  "Beauty",
+  "Accessories",
+  "Other",
+];
+
+function formatCurrency(amount: number) {
+  return `₹${Math.max(0, amount).toLocaleString("en-IN")}`;
+}
+
+function getBalance(price: number, paid: number) {
+  return Math.max(0, price - paid);
+}
+
 export default async function ShoppingPage({
   searchParams,
 }: ShoppingPageProps) {
   const params = await searchParams;
+  const eventIdFromUrl = params.event || "";
 
-  const eventIdFromUrl =
-    params.event || "";
+  const supabase = (await createClient()) as any;
 
-  const supabase =
-    (await createClient()) as any;
+  /* ---------------- EVENTS ---------------- */
 
-  /* -------------------------------------------------
-     LOAD EVENTS
-  ------------------------------------------------- */
+  const { data: rawEvents } = await supabase
+    .from("events")
+    .select("*")
+    .order("created_at", {
+      ascending: false,
+    });
 
-  const { data: rawEvents } =
-    await supabase
-      .from("events")
-      .select("*");
-
-  const events: EventData[] = (
-    rawEvents ?? []
-  ).map((event: any) => ({
-    id: String(event.id),
-
-    name: String(
-      event.name || "Your Wedding"
-    ),
-
-    event_date:
-      event.event_date ?? null,
-  }));
-
-  /* -------------------------------------------------
-     SELECT EVENT
-  ------------------------------------------------- */
+  const events: EventData[] = (rawEvents ?? []).map(
+    (event: any) => ({
+      id: String(event.id),
+      name: String(event.name || "Your Wedding"),
+      event_date: event.event_date ?? null,
+    })
+  );
 
   const selectedEvent =
     events.find(
-      (event) =>
-        event.id ===
-        eventIdFromUrl
+      (event) => event.id === eventIdFromUrl
     ) ||
     events[0] ||
     null;
 
-  /* -------------------------------------------------
-     NO EVENT
-  ------------------------------------------------- */
+  /* ---------------- NO EVENT ---------------- */
 
   if (!selectedEvent) {
     return (
@@ -114,8 +120,7 @@ export default async function ShoppingPage({
           </h1>
 
           <p className="mt-2 text-muted-foreground">
-            Manage everything you need to buy
-            for your wedding.
+            Manage everything you need to buy for your wedding.
           </p>
         </div>
 
@@ -130,14 +135,11 @@ export default async function ShoppingPage({
             </h2>
 
             <p className="mt-2 max-w-md text-sm text-muted-foreground">
-              Create a wedding event first before
-              adding shopping items.
+              Create a wedding event first before adding shopping
+              items.
             </p>
 
-            <Link
-              href="/dashboard/events"
-              className="mt-6"
-            >
+            <Link href="/dashboard/events" className="mt-6">
               <Button className="bg-emerald-600 hover:bg-emerald-700">
                 Manage Events
               </Button>
@@ -148,109 +150,79 @@ export default async function ShoppingPage({
     );
   }
 
-  const eventId =
-    selectedEvent.id;
+  const eventId = selectedEvent.id;
 
-  /* -------------------------------------------------
-     LOAD SHOPPING ITEMS
-  ------------------------------------------------- */
+  /* ---------------- SHOPPING ITEMS ---------------- */
 
-  const { data: rawItems } =
-    await supabase
-      .from("shopping_items")
-      .select("*")
-      .eq(
-        "event_id",
-        eventId
-      )
-      .order("created_at", {
-        ascending: false,
-      });
+  const { data: rawItems, error } = await supabase
+    .from("shopping_items")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", {
+      ascending: false,
+    });
 
-  const items: ShoppingItem[] = (
-    rawItems ?? []
-  ).map((item: any) => ({
-    id: String(item.id),
+  if (error) {
+    console.error("Failed to load shopping items:", error);
+  }
 
-    event_id: String(
-      item.event_id
-    ),
+  const items: ShoppingItem[] = (rawItems ?? []).map(
+    (item: any) => ({
+      id: String(item.id),
+      event_id: String(item.event_id),
+      name: String(item.name || "Shopping Item"),
+      category: String(item.category || "Other"),
+      quantity: Number(item.quantity || 1),
+      price: Number(item.price || 0),
+      paid: Number(item.paid || 0),
+      purchased: Boolean(item.purchased),
+    })
+  );
 
-    name: String(
-      item.name || "Shopping Item"
-    ),
+  /* ---------------- CALCULATIONS ---------------- */
 
-    category: String(
-      item.category || "Other"
-    ),
+  const totalItems = items.length;
 
-    quantity: Number(
-      item.quantity || 1
-    ),
+  const purchasedItems = items.filter(
+    (item) => item.purchased
+  ).length;
 
-    estimated_price: Number(
-      item.estimated_price || 0
-    ),
+  const pendingItems = totalItems - purchasedItems;
 
-    actual_price: Number(
-      item.actual_price || 0
-    ),
+  const totalPrice = items.reduce(
+    (sum, item) => sum + item.price,
+    0
+  );
 
-    purchased: Boolean(
-      item.purchased
-    ),
-  }));
+  const totalPaid = items.reduce(
+    (sum, item) =>
+      sum + Math.min(item.paid, item.price),
+    0
+  );
 
-  /* -------------------------------------------------
-     CALCULATIONS
-  ------------------------------------------------- */
+  const totalBalance = Math.max(
+    0,
+    totalPrice - totalPaid
+  );
 
-  const totalItems =
-    items.length;
-
-  const purchasedItems =
-    items.filter(
-      (item) =>
-        item.purchased
-    ).length;
-
-  const pendingItems =
-    totalItems -
-    purchasedItems;
-
-  const estimatedTotal =
-    items.reduce(
-      (total, item) =>
-        total +
-        item.estimated_price *
-          item.quantity,
-      0
-    );
-
-  const actualTotal =
-    items.reduce(
-      (total, item) =>
-        total +
-        item.actual_price *
-          item.quantity,
-      0
-    );
-
-  const progress =
-    totalItems > 0
-      ? Math.round(
-          (purchasedItems /
-            totalItems) *
-            100
+  const paymentProgress =
+    totalPrice > 0
+      ? Math.min(
+          100,
+          Math.round((totalPaid / totalPrice) * 100)
         )
       : 0;
 
-  /* -------------------------------------------------
-     RENDER
-  ------------------------------------------------- */
+  const shoppingProgress =
+    totalItems > 0
+      ? Math.round(
+          (purchasedItems / totalItems) * 100
+        )
+      : 0;
 
   return (
     <div className="space-y-8">
+
       {/* HEADER */}
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -278,6 +250,13 @@ export default async function ShoppingPage({
             </span>
           </p>
         </div>
+
+        <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-emerald-700">
+          <ShoppingBag className="h-5 w-5" />
+          <span className="text-sm font-semibold">
+            {pendingItems} pending
+          </span>
+        </div>
       </div>
 
       {/* EVENT SWITCHER */}
@@ -289,89 +268,84 @@ export default async function ShoppingPage({
               Event:
             </span>
 
-            {events.map(
-              (event) => (
-                <Link
-                  key={event.id}
-                  href={`/dashboard/shopping?event=${event.id}`}
+            {events.map((event) => (
+              <Link
+                key={event.id}
+                href={`/dashboard/shopping?event=${event.id}`}
+              >
+                <Button
+                  variant={
+                    event.id === eventId
+                      ? "default"
+                      : "outline"
+                  }
+                  className={
+                    event.id === eventId
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : ""
+                  }
                 >
-                  <Button
-                    variant={
-                      event.id ===
-                      eventId
-                        ? "default"
-                        : "outline"
-                    }
-                    className={
-                      event.id ===
-                      eventId
-                        ? "bg-emerald-600 hover:bg-emerald-700"
-                        : ""
-                    }
-                  >
-                    {event.name}
-                  </Button>
-                </Link>
-              )
-            )}
+                  {event.name}
+                </Button>
+              </Link>
+            ))}
           </CardContent>
         </Card>
       )}
 
-      {/* STATS */}
+      {/* MONEY SUMMARY */}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Total Items"
-          value={String(
-            totalItems
-          )}
-          description="Shopping items"
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+
+        <MoneyCard
+          title="Total Price"
+          value={formatCurrency(totalPrice)}
+          description={`${totalItems} shopping item${
+            totalItems === 1 ? "" : "s"
+          }`}
+          icon={
+            <ShoppingBag className="h-5 w-5 text-emerald-600" />
+          }
         />
 
-        <StatCard
-          title="Purchased"
-          value={String(
-            purchasedItems
-          )}
-          description={`${progress}% completed`}
+        <MoneyCard
+          title="Total Paid"
+          value={formatCurrency(totalPaid)}
+          description={`${paymentProgress}% of shopping cost paid`}
+          icon={
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          }
         />
 
-        <StatCard
-          title="Estimated"
-          value={formatCurrency(
-            estimatedTotal
-          )}
-          description="Estimated total"
+        <MoneyCard
+          title="Total Balance"
+          value={formatCurrency(totalBalance)}
+          description="Amount still to pay"
+          icon={
+            <Wallet className="h-5 w-5 text-orange-600" />
+          }
         />
 
-        <StatCard
-          title="Actual"
-          value={formatCurrency(
-            actualTotal
-          )}
-          description={`${pendingItems} pending`}
-        />
       </div>
 
-      {/* PROGRESS */}
+      {/* PAYMENT PROGRESS */}
 
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-bold">
-                Shopping Progress
+                Payment Progress
               </h2>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                {purchasedItems} of{" "}
-                {totalItems} items purchased
+                {formatCurrency(totalPaid)} paid of{" "}
+                {formatCurrency(totalPrice)}
               </p>
             </div>
 
             <span className="text-3xl font-bold text-emerald-600">
-              {progress}%
+              {paymentProgress}%
             </span>
           </div>
 
@@ -379,7 +353,38 @@ export default async function ShoppingPage({
             <div
               className="h-full rounded-full bg-emerald-600 transition-all"
               style={{
-                width: `${progress}%`,
+                width: `${paymentProgress}%`,
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SHOPPING PROGRESS */}
+
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold">
+                Shopping Progress
+              </h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                {purchasedItems} of {totalItems} items purchased
+              </p>
+            </div>
+
+            <span className="text-3xl font-bold text-emerald-600">
+              {shoppingProgress}%
+            </span>
+          </div>
+
+          <div className="mt-5 h-3 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-emerald-600 transition-all"
+              style={{
+                width: `${shoppingProgress}%`,
               }}
             />
           </div>
@@ -390,6 +395,7 @@ export default async function ShoppingPage({
 
       <Card>
         <CardContent className="p-6">
+
           <div className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-emerald-600" />
 
@@ -398,9 +404,13 @@ export default async function ShoppingPage({
             </h2>
           </div>
 
+          <p className="mt-1 text-sm text-muted-foreground">
+            Add something you need to buy for this event.
+          </p>
+
           <form
             action={addShoppingItem}
-            className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+            className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3"
           >
             <input
               type="hidden"
@@ -408,18 +418,16 @@ export default async function ShoppingPage({
               value={eventId}
             />
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Item Name
-              </label>
+            {/* NAME */}
 
-              <input
-                name="name"
-                required
-                placeholder="e.g. Wedding Shoes"
-                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-              />
-            </div>
+            <FormField
+              label="Item Name"
+              name="name"
+              placeholder="e.g. Wedding Shoes"
+              required
+            />
+
+            {/* CATEGORY */}
 
             <div>
               <label className="mb-1 block text-sm font-medium">
@@ -431,84 +439,43 @@ export default async function ShoppingPage({
                 defaultValue="Other"
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
               >
-                <option value="Clothing">
-                  Clothing
-                </option>
-
-                <option value="Gifts">
-                  Gifts
-                </option>
-
-                <option value="Decoration">
-                  Decoration
-                </option>
-
-                <option value="Jewellery">
-                  Jewellery
-                </option>
-
-                <option value="Food">
-                  Food
-                </option>
-
-                <option value="Beauty">
-                  Beauty
-                </option>
-
-                <option value="Accessories">
-                  Accessories
-                </option>
-
-                <option value="Other">
-                  Other
-                </option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Quantity
-              </label>
+            {/* QUANTITY */}
 
-              <input
-                name="quantity"
-                type="number"
-                min="1"
-                defaultValue="1"
-                required
-                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-              />
-            </div>
+            <NumberField
+              label="Quantity"
+              name="quantity"
+              defaultValue="1"
+              min="1"
+              step="1"
+            />
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Estimated Price
-              </label>
+            {/* PRICE */}
 
-              <input
-                name="estimated_price"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue="0"
-                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-              />
-            </div>
+            <NumberField
+              label="Price"
+              name="price"
+              placeholder="5000"
+              min="0"
+              step="0.01"
+            />
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Actual Price
-              </label>
+            {/* PAID */}
 
-              <input
-                name="actual_price"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue="0"
-                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-              />
-            </div>
+            <NumberField
+              label="Paid"
+              name="paid"
+              placeholder="2000"
+              min="0"
+              step="0.01"
+            />
 
             <div className="flex items-end">
               <Button
@@ -523,22 +490,18 @@ export default async function ShoppingPage({
         </CardContent>
       </Card>
 
-      {/* ITEMS */}
+      {/* SHOPPING LIST */}
 
       <div>
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold">
-              Shopping List
-            </h2>
+        <div className="mb-4">
+          <h2 className="text-xl font-bold">
+            Shopping List
+          </h2>
 
-            <p className="mt-1 text-sm text-muted-foreground">
-              {totalItems} item
-              {totalItems === 1
-                ? ""
-                : "s"} in your list
-            </p>
-          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {totalItems} item
+            {totalItems === 1 ? "" : "s"} in your list
+          </p>
         </div>
 
         {items.length === 0 ? (
@@ -557,8 +520,14 @@ export default async function ShoppingPage({
           </Card>
         ) : (
           <div className="space-y-4">
-            {items.map(
-              (item) => (
+
+            {items.map((item) => {
+              const balance = getBalance(
+                item.price,
+                item.paid
+              );
+
+              return (
                 <Card
                   key={item.id}
                   className={
@@ -568,10 +537,13 @@ export default async function ShoppingPage({
                   }
                 >
                   <CardContent className="p-5">
+
                     {/* ITEM HEADER */}
 
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+
                       <div className="flex items-start gap-4">
+
                         <div
                           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
                             item.purchased
@@ -603,8 +575,7 @@ export default async function ShoppingPage({
                             </span>
 
                             <span className="rounded-full bg-muted px-2.5 py-1">
-                              Quantity:{" "}
-                              {item.quantity}
+                              Quantity: {item.quantity}
                             </span>
 
                             <span
@@ -620,11 +591,13 @@ export default async function ShoppingPage({
                             </span>
                           </div>
                         </div>
+
                       </div>
 
                       {/* ACTIONS */}
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+
                         <form
                           action={toggleShoppingItem.bind(
                             null,
@@ -661,37 +634,38 @@ export default async function ShoppingPage({
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </form>
+
                       </div>
                     </div>
 
-                    {/* ITEM DETAILS */}
+                    {/* MONEY DETAILS */}
 
                     <div className="mt-5 grid gap-3 sm:grid-cols-3">
+
                       <InfoBox
-                        label="Quantity"
-                        value={String(
-                          item.quantity
-                        )}
+                        label="Price"
+                        value={formatCurrency(item.price)}
                       />
 
                       <InfoBox
-                        label="Estimated"
-                        value={formatCurrency(
-                          item.estimated_price *
-                            item.quantity
-                        )}
+                        label="Paid"
+                        value={formatCurrency(item.paid)}
+                        valueClassName="text-emerald-600"
                       />
 
                       <InfoBox
-                        label="Actual"
-                        value={formatCurrency(
-                          item.actual_price *
-                            item.quantity
-                        )}
+                        label="Balance"
+                        value={formatCurrency(balance)}
+                        valueClassName={
+                          balance > 0
+                            ? "text-orange-600"
+                            : "text-emerald-600"
+                        }
                       />
+
                     </div>
 
-                    {/* INLINE EDIT */}
+                    {/* EDIT */}
 
                     <details className="mt-5">
                       <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-emerald-600">
@@ -700,9 +674,7 @@ export default async function ShoppingPage({
                       </summary>
 
                       <form
-                        action={
-                          updateShoppingItem
-                        }
+                        action={updateShoppingItem}
                         className="mt-4 grid gap-4 rounded-xl border bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-3"
                       >
                         <input
@@ -717,20 +689,12 @@ export default async function ShoppingPage({
                           value={eventId}
                         />
 
-                        <div>
-                          <label className="mb-1 block text-sm font-medium">
-                            Item Name
-                          </label>
-
-                          <input
-                            name="name"
-                            defaultValue={
-                              item.name
-                            }
-                            required
-                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
+                        <FormField
+                          label="Item Name"
+                          name="name"
+                          defaultValue={item.name}
+                          required
+                        />
 
                         <div>
                           <label className="mb-1 block text-sm font-medium">
@@ -739,95 +703,43 @@ export default async function ShoppingPage({
 
                           <select
                             name="category"
-                            defaultValue={
-                              item.category
-                            }
+                            defaultValue={item.category}
                             className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
                           >
-                            <option value="Clothing">
-                              Clothing
-                            </option>
-
-                            <option value="Gifts">
-                              Gifts
-                            </option>
-
-                            <option value="Decoration">
-                              Decoration
-                            </option>
-
-                            <option value="Jewellery">
-                              Jewellery
-                            </option>
-
-                            <option value="Food">
-                              Food
-                            </option>
-
-                            <option value="Beauty">
-                              Beauty
-                            </option>
-
-                            <option value="Accessories">
-                              Accessories
-                            </option>
-
-                            <option value="Other">
-                              Other
-                            </option>
+                            {categories.map((category) => (
+                              <option
+                                key={category}
+                                value={category}
+                              >
+                                {category}
+                              </option>
+                            ))}
                           </select>
                         </div>
 
-                        <div>
-                          <label className="mb-1 block text-sm font-medium">
-                            Quantity
-                          </label>
+                        <NumberField
+                          label="Quantity"
+                          name="quantity"
+                          defaultValue={String(item.quantity)}
+                          min="1"
+                          step="1"
+                        />
 
-                          <input
-                            name="quantity"
-                            type="number"
-                            min="1"
-                            defaultValue={
-                              item.quantity
-                            }
-                            required
-                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
+                        <NumberField
+                          label="Price"
+                          name="price"
+                          defaultValue={String(item.price)}
+                          min="0"
+                          step="0.01"
+                        />
 
-                        <div>
-                          <label className="mb-1 block text-sm font-medium">
-                            Estimated Price
-                          </label>
-
-                          <input
-                            name="estimated_price"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={
-                              item.estimated_price
-                            }
-                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-sm font-medium">
-                            Actual Price
-                          </label>
-
-                          <input
-                            name="actual_price"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={
-                              item.actual_price
-                            }
-                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
+                        <NumberField
+                          label="Paid"
+                          name="paid"
+                          defaultValue={String(item.paid)}
+                          min="0"
+                          step="0.01"
+                        />
 
                         <div>
                           <label className="mb-1 block text-sm font-medium">
@@ -863,15 +775,17 @@ export default async function ShoppingPage({
                         </div>
                       </form>
                     </details>
+
                   </CardContent>
                 </Card>
-              )
-            )}
+              );
+            })}
+
           </div>
         )}
       </div>
 
-      {/* FOOTER LINK */}
+      {/* FOOTER */}
 
       <div className="flex justify-end">
         <Link
@@ -882,52 +796,129 @@ export default async function ShoppingPage({
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
+
     </div>
   );
 }
 
-/* -------------------------------------------------
-   STAT CARD
-------------------------------------------------- */
+/* ---------------- MONEY CARD ---------------- */
 
-function StatCard({
+function MoneyCard({
   title,
   value,
   description,
+  icon,
 }: {
   title: string;
   value: string;
   description: string;
+  icon: React.ReactNode;
 }) {
   return (
     <Card>
       <CardContent className="p-5">
-        <p className="text-sm text-muted-foreground">
-          {title}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              {title}
+            </p>
 
-        <p className="mt-1 text-2xl font-bold">
-          {value}
-        </p>
+            <p className="mt-2 text-2xl font-bold">
+              {value}
+            </p>
 
-        <p className="mt-1 text-xs text-muted-foreground">
-          {description}
-        </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {description}
+            </p>
+          </div>
+
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+            {icon}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-/* -------------------------------------------------
-   INFO BOX
-------------------------------------------------- */
+/* ---------------- FORM FIELD ---------------- */
+
+function FormField({
+  label,
+  name,
+  placeholder,
+  defaultValue,
+  required = false,
+}: {
+  label: string;
+  name: string;
+  placeholder?: string;
+  defaultValue?: string;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium">
+        {label}
+      </label>
+
+      <input
+        name={name}
+        required={required}
+        placeholder={placeholder}
+        defaultValue={defaultValue}
+        className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+      />
+    </div>
+  );
+}
+
+/* ---------------- NUMBER FIELD ---------------- */
+
+function NumberField({
+  label,
+  name,
+  placeholder,
+  defaultValue,
+  min,
+  step,
+}: {
+  label: string;
+  name: string;
+  placeholder?: string;
+  defaultValue?: string;
+  min?: string;
+  step?: string;
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium">
+        {label}
+      </label>
+
+      <input
+        name={name}
+        type="number"
+        min={min}
+        step={step}
+        placeholder={placeholder}
+        defaultValue={defaultValue}
+        className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+      />
+    </div>
+  );
+}
+
+/* ---------------- INFO BOX ---------------- */
 
 function InfoBox({
   label,
   value,
+  valueClassName = "",
 }: {
   label: string;
   value: string;
+  valueClassName?: string;
 }) {
   return (
     <div className="rounded-lg bg-muted/50 p-3">
@@ -935,26 +926,11 @@ function InfoBox({
         {label}
       </p>
 
-      <p className="mt-1 font-semibold">
+      <p
+        className={`mt-1 font-semibold ${valueClassName}`}
+      >
         {value}
       </p>
     </div>
   );
-}
-
-/* -------------------------------------------------
-   CURRENCY
-------------------------------------------------- */
-
-function formatCurrency(
-  amount: number
-) {
-  return new Intl.NumberFormat(
-    "en-IN",
-    {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }
-  ).format(amount || 0);
 }

@@ -1,18 +1,18 @@
 import Link from "next/link";
 
 import {
+  AlertCircle,
+  ArrowRight,
+  CalendarDays,
   CalendarHeart,
   CheckCircle2,
-  Users,
-  Wallet,
+  Clock3,
+  Plus,
   ShoppingBag,
   Store,
-  ArrowRight,
-  Clock3,
-  AlertCircle,
-  Plus,
-  CalendarDays,
   TrendingUp,
+  Users,
+  Wallet,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
@@ -25,6 +25,10 @@ import {
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
+
+/* =====================================================
+   TYPES
+===================================================== */
 
 type EventData = {
   id: string;
@@ -53,24 +57,45 @@ type GuestData = {
 type ShoppingData = {
   id: string;
   name: string;
-  purchased: boolean | null;
+  category: string | null;
+  price: number;
+  paid: number;
+  purchased: boolean;
 };
 
 type BudgetData = {
   id: string;
   name: string;
-  estimated_amount: number | null;
-  actual_amount: number | null;
-  paid: boolean | null;
+  category: string | null;
+  estimated_amount: number;
+  actual_amount: number;
+  paid: boolean;
 };
 
 type VendorData = {
   id: string;
   name: string;
   category: string | null;
-  total_amount: number | null;
-  advance_paid: number | null;
+  total_amount: number;
+  advance_paid: number;
 };
+
+type ExpenseSegment = {
+  name: string;
+  total: number;
+  paid: number;
+  balance: number;
+  color: string;
+};
+
+type CategoryExpense = {
+  name: string;
+  total: number;
+};
+
+/* =====================================================
+   PROPS
+===================================================== */
 
 interface DashboardProps {
   searchParams: Promise<{
@@ -78,28 +103,29 @@ interface DashboardProps {
   }>;
 }
 
+/* =====================================================
+   PAGE
+===================================================== */
+
 export default async function DashboardPage({
   searchParams,
 }: DashboardProps) {
   const params = await searchParams;
 
-  const selectedEventId =
-    params.event || "";
+  const selectedEventId = params.event || "";
 
-  const supabase =
-    (await createClient()) as any;
+  const supabase = (await createClient()) as any;
 
-  /* -------------------------------------------------
+  /* =====================================================
      EVENTS
-  ------------------------------------------------- */
+  ===================================================== */
 
-  const { data: rawEvents } =
-    await supabase
-      .from("events")
-      .select("*")
-      .order("created_at", {
-        ascending: false,
-      });
+  const { data: rawEvents } = await supabase
+    .from("events")
+    .select("*")
+    .order("created_at", {
+      ascending: false,
+    });
 
   const allEvents: EventData[] = (
     rawEvents ?? []
@@ -110,8 +136,7 @@ export default async function DashboardPage({
       event.name || "Your Wedding"
     ),
 
-    slug:
-      event.slug ?? null,
+    slug: event.slug ?? null,
 
     description:
       event.description ?? null,
@@ -127,22 +152,20 @@ export default async function DashboardPage({
     ),
   }));
 
-  /* -------------------------------------------------
-     SELECT EVENT
-  ------------------------------------------------- */
-
   const selectedEvent =
     allEvents.find(
       (event) =>
         event.id === selectedEventId
-    ) || allEvents[0] || null;
+    ) ||
+    allEvents[0] ||
+    null;
 
   const eventId =
     selectedEvent?.id || "";
 
-  /* -------------------------------------------------
+  /* =====================================================
      EMPTY STATE
-  ------------------------------------------------- */
+  ===================================================== */
 
   if (!selectedEvent) {
     return (
@@ -193,9 +216,9 @@ export default async function DashboardPage({
     );
   }
 
-  /* -------------------------------------------------
-     LOAD EVENT DATA
-  ------------------------------------------------- */
+  /* =====================================================
+     LOAD DATA
+  ===================================================== */
 
   const [
     tasksResult,
@@ -230,9 +253,9 @@ export default async function DashboardPage({
       .eq("event_id", eventId),
   ]);
 
-  /* -------------------------------------------------
-     NORMALIZE DATA
-  ------------------------------------------------- */
+  /* =====================================================
+     NORMALIZE
+  ===================================================== */
 
   const tasks: TaskData[] = (
     tasksResult.data ?? []
@@ -276,6 +299,18 @@ export default async function DashboardPage({
       item.name || "Shopping Item"
     ),
 
+    category:
+      item.category ?? "Other",
+
+    price: Number(
+      item.price ?? 0
+    ),
+
+    paid: Math.min(
+      Number(item.paid ?? 0),
+      Number(item.price ?? 0)
+    ),
+
     purchased: Boolean(
       item.purchased
     ),
@@ -290,19 +325,16 @@ export default async function DashboardPage({
       item.name || "Expense"
     ),
 
-    estimated_amount:
-      item.estimated_amount == null
-        ? 0
-        : Number(
-            item.estimated_amount
-          ),
+    category:
+      item.category ?? "Other",
 
-    actual_amount:
-      item.actual_amount == null
-        ? 0
-        : Number(
-            item.actual_amount
-          ),
+    estimated_amount: Number(
+      item.estimated_amount ?? 0
+    ),
+
+    actual_amount: Number(
+      item.actual_amount ?? 0
+    ),
 
     paid: Boolean(item.paid),
   }));
@@ -317,26 +349,21 @@ export default async function DashboardPage({
     ),
 
     category:
-      vendor.category ?? null,
+      vendor.category ?? "Other",
 
-    total_amount:
-      vendor.total_amount == null
-        ? 0
-        : Number(
-            vendor.total_amount
-          ),
+    total_amount: Number(
+      vendor.total_amount ?? 0
+    ),
 
-    advance_paid:
-      vendor.advance_paid == null
-        ? 0
-        : Number(
-            vendor.advance_paid
-          ),
+    advance_paid: Math.min(
+      Number(vendor.advance_paid ?? 0),
+      Number(vendor.total_amount ?? 0)
+    ),
   }));
 
-  /* -------------------------------------------------
+  /* =====================================================
      TASK CALCULATIONS
-  ------------------------------------------------- */
+  ===================================================== */
 
   const completedTasks =
     tasks.filter(
@@ -362,9 +389,9 @@ export default async function DashboardPage({
         )
       : 0;
 
-  /* -------------------------------------------------
+  /* =====================================================
      GUEST CALCULATIONS
-  ------------------------------------------------- */
+  ===================================================== */
 
   const acceptedGuests =
     guests.filter(
@@ -399,15 +426,18 @@ export default async function DashboardPage({
         )
       : 0;
 
-  /* -------------------------------------------------
+  /* =====================================================
      SHOPPING CALCULATIONS
-  ------------------------------------------------- */
+  ===================================================== */
 
   const purchasedItems =
     shopping.filter(
-      (item) =>
-        item.purchased
+      (item) => item.purchased
     ).length;
+
+  const pendingShoppingItems =
+    shopping.length -
+    purchasedItems;
 
   const shoppingProgress =
     shopping.length > 0
@@ -418,17 +448,36 @@ export default async function DashboardPage({
         )
       : 0;
 
-  /* -------------------------------------------------
+  const shoppingTotal =
+    shopping.reduce(
+      (total, item) =>
+        total + item.price,
+      0
+    );
+
+  const shoppingPaid =
+    shopping.reduce(
+      (total, item) =>
+        total + item.paid,
+      0
+    );
+
+  const shoppingBalance =
+    Math.max(
+      0,
+      shoppingTotal -
+        shoppingPaid
+    );
+
+  /* =====================================================
      BUDGET CALCULATIONS
-  ------------------------------------------------- */
+  ===================================================== */
 
   const estimatedBudget =
     budget.reduce(
       (total, item) =>
         total +
-        Number(
-          item.estimated_amount || 0
-        ),
+        item.estimated_amount,
       0
     );
 
@@ -436,9 +485,7 @@ export default async function DashboardPage({
     budget.reduce(
       (total, item) =>
         total +
-        Number(
-          item.actual_amount || 0
-        ),
+        item.actual_amount,
       0
     );
 
@@ -450,11 +497,16 @@ export default async function DashboardPage({
       .reduce(
         (total, item) =>
           total +
-          Number(
-            item.actual_amount || 0
-          ),
+          item.actual_amount,
         0
       );
+
+  const budgetBalance =
+    Math.max(
+      0,
+      actualBudget -
+        paidBudget
+    );
 
   const budgetProgress =
     estimatedBudget > 0
@@ -468,17 +520,15 @@ export default async function DashboardPage({
         )
       : 0;
 
-  /* -------------------------------------------------
+  /* =====================================================
      VENDOR CALCULATIONS
-  ------------------------------------------------- */
+  ===================================================== */
 
   const vendorTotal =
     vendors.reduce(
       (total, vendor) =>
         total +
-        Number(
-          vendor.total_amount || 0
-        ),
+        vendor.total_amount,
       0
     );
 
@@ -486,9 +536,7 @@ export default async function DashboardPage({
     vendors.reduce(
       (total, vendor) =>
         total +
-        Number(
-          vendor.advance_paid || 0
-        ),
+        vendor.advance_paid,
       0
     );
 
@@ -499,9 +547,54 @@ export default async function DashboardPage({
         vendorAdvance
     );
 
-  /* -------------------------------------------------
+  const vendorProgress =
+    vendorTotal > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (vendorAdvance /
+              vendorTotal) *
+              100
+          )
+        )
+      : 0;
+
+  /* =====================================================
+     MONEY CENTER
+  ===================================================== */
+
+  const totalWeddingCost =
+    actualBudget +
+    vendorTotal +
+    shoppingTotal;
+
+  const totalPaid =
+    paidBudget +
+    vendorAdvance +
+    shoppingPaid;
+
+  const totalBalance =
+    Math.max(
+      0,
+      totalWeddingCost -
+        totalPaid
+    );
+
+  const paymentProgress =
+    totalWeddingCost > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (totalPaid /
+              totalWeddingCost) *
+              100
+          )
+        )
+      : 0;
+
+  /* =====================================================
      OVERALL PROGRESS
-  ------------------------------------------------- */
+  ===================================================== */
 
   const overallProgress =
     Math.round(
@@ -511,9 +604,9 @@ export default async function DashboardPage({
         3
     );
 
-  /* -------------------------------------------------
-     DATE / COUNTDOWN
-  ------------------------------------------------- */
+  /* =====================================================
+     COUNTDOWN
+  ===================================================== */
 
   const weddingDate =
     selectedEvent.event_date;
@@ -532,9 +625,24 @@ export default async function DashboardPage({
         )
       : null;
 
-  /* -------------------------------------------------
-     UPCOMING TASKS
-  ------------------------------------------------- */
+  const formattedWeddingDate =
+    weddingDate
+      ? new Date(
+          weddingDate
+        ).toLocaleDateString(
+          "en-IN",
+          {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          }
+        )
+      : "Date not set";
+
+  /* =====================================================
+     TASKS
+  ===================================================== */
 
   const upcomingTasks =
     [...tasks]
@@ -555,12 +663,7 @@ export default async function DashboardPage({
       )
       .slice(0, 5);
 
-  /* -------------------------------------------------
-     OVERDUE TASKS
-  ------------------------------------------------- */
-
-  const now =
-    new Date();
+  const now = new Date();
 
   const overdueTasks =
     tasks.filter(
@@ -573,31 +676,117 @@ export default async function DashboardPage({
         ) < now
     );
 
-  /* -------------------------------------------------
-     FORMAT DATE
-  ------------------------------------------------- */
+  /* =====================================================
+     EXPENSE BREAKDOWN
+  ===================================================== */
 
-  const formattedWeddingDate =
-    weddingDate
-      ? new Date(
-          weddingDate
-        ).toLocaleDateString(
-          "en-IN",
-          {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          }
-        )
-      : "Date not set";
+  const expenseSegments: ExpenseSegment[] =
+    [
+      {
+        name: "Budget",
+        total: actualBudget,
+        paid: paidBudget,
+        balance: budgetBalance,
+        color: "bg-emerald-600",
+      },
+      {
+        name: "Vendors",
+        total: vendorTotal,
+        paid: vendorAdvance,
+        balance: vendorRemaining,
+        color: "bg-blue-600",
+      },
+      {
+        name: "Shopping",
+        total: shoppingTotal,
+        paid: shoppingPaid,
+        balance: shoppingBalance,
+        color: "bg-orange-500",
+      },
+    ];
 
-  /* -------------------------------------------------
+  const maxSegmentTotal =
+    Math.max(
+      ...expenseSegments.map(
+        (segment) =>
+          segment.total
+      ),
+      1
+    );
+
+  /* =====================================================
+     CATEGORY BREAKDOWN
+  ===================================================== */
+
+  const categoryTotals: Record<
+    string,
+    number
+  > = {};
+
+  budget.forEach((item) => {
+    const category =
+      item.category ||
+      "Other";
+
+    categoryTotals[category] =
+      (categoryTotals[category] ||
+        0) +
+      item.actual_amount;
+  });
+
+  vendors.forEach((vendor) => {
+    const category =
+      vendor.category ||
+      "Other";
+
+    categoryTotals[category] =
+      (categoryTotals[category] ||
+        0) +
+      vendor.total_amount;
+  });
+
+  shopping.forEach((item) => {
+    const category =
+      item.category ||
+      "Other";
+
+    categoryTotals[category] =
+      (categoryTotals[category] ||
+        0) +
+      item.price;
+  });
+
+  const categoryExpenses: CategoryExpense[] =
+    Object.entries(
+      categoryTotals
+    )
+      .map(
+        ([name, total]) => ({
+          name,
+          total,
+        })
+      )
+      .sort(
+        (a, b) =>
+          b.total - a.total
+      )
+      .slice(0, 8);
+
+  const maxCategoryTotal =
+    Math.max(
+      ...categoryExpenses.map(
+        (item) => item.total
+      ),
+      1
+    );
+
+  /* =====================================================
      RENDER
-  ------------------------------------------------- */
+  ===================================================== */
 
   return (
     <div className="space-y-8">
+
       {/* HEADER */}
 
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -618,9 +807,7 @@ export default async function DashboardPage({
 
         <div className="flex flex-wrap gap-3">
           <Link href="/dashboard/events">
-            <Button
-              variant="outline"
-            >
+            <Button variant="outline">
               Manage Events
             </Button>
           </Link>
@@ -664,14 +851,12 @@ export default async function DashboardPage({
                   >
                     <Button
                       variant={
-                        event.id ===
-                        eventId
+                        event.id === eventId
                           ? "default"
                           : "outline"
                       }
                       className={
-                        event.id ===
-                        eventId
+                        event.id === eventId
                           ? "bg-emerald-600 hover:bg-emerald-700"
                           : ""
                       }
@@ -757,6 +942,7 @@ export default async function DashboardPage({
       {/* STAT CARDS */}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
         <DashboardStat
           title="Tasks"
           value={`${completedTasks}/${tasks.length}`}
@@ -800,11 +986,329 @@ export default async function DashboardPage({
           }
           href={`/dashboard/shopping?event=${eventId}`}
         />
+
       </div>
+
+      {/* MONEY CENTER */}
+
+      <Card className="overflow-hidden">
+        <CardContent className="p-6">
+
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="font-display text-2xl font-bold">
+                Money Center
+              </h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                Complete wedding payment overview
+              </p>
+            </div>
+
+            <div className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
+              {paymentProgress}% paid
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+
+            <MoneyCenterCard
+              title="Total Wedding Cost"
+              value={formatCurrency(
+                totalWeddingCost
+              )}
+              description="Tracked expenses"
+              icon={
+                <Wallet className="h-5 w-5 text-emerald-600" />
+              }
+            />
+
+            <MoneyCenterCard
+              title="Total Paid"
+              value={formatCurrency(
+                totalPaid
+              )}
+              description="Amount already paid"
+              icon={
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              }
+            />
+
+            <MoneyCenterCard
+              title="Total Balance"
+              value={formatCurrency(
+                totalBalance
+              )}
+              description="Amount still remaining"
+              icon={
+                <AlertCircle className="h-5 w-5 text-orange-500" />
+              }
+            />
+
+          </div>
+
+          <div className="mt-6">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Overall payment progress
+              </span>
+
+              <span className="font-semibold">
+                {formatCurrency(
+                  totalPaid
+                )}{" "}
+                /{" "}
+                {formatCurrency(
+                  totalWeddingCost
+                )}
+              </span>
+            </div>
+
+            <div className="mt-2 h-3 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-emerald-600 transition-all"
+                style={{
+                  width: `${paymentProgress}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
+
+            <Link
+              href={`/dashboard/budget?event=${eventId}`}
+            >
+              <MoneySourceCard
+                title="Budget"
+                total={actualBudget}
+                paid={paidBudget}
+                balance={budgetBalance}
+              />
+            </Link>
+
+            <Link
+              href={`/dashboard/vendors?event=${eventId}`}
+            >
+              <MoneySourceCard
+                title="Vendors"
+                total={vendorTotal}
+                paid={vendorAdvance}
+                balance={vendorRemaining}
+              />
+            </Link>
+
+            <Link
+              href={`/dashboard/shopping?event=${eventId}`}
+            >
+              <MoneySourceCard
+                title="Shopping"
+                total={shoppingTotal}
+                paid={shoppingPaid}
+                balance={shoppingBalance}
+              />
+            </Link>
+
+          </div>
+
+        </CardContent>
+      </Card>
+
+      {/* EXPENSE BREAKDOWN */}
+
+      <Card>
+        <CardContent className="p-6">
+
+          <div>
+            <h2 className="font-display text-2xl font-bold">
+              Expense Breakdown
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              See where your wedding money is going.
+            </p>
+          </div>
+
+          {/* SEGMENT BREAKDOWN */}
+
+          <div className="mt-6 space-y-5">
+
+            {expenseSegments.map(
+              (segment) => {
+                const percentage =
+                  totalWeddingCost > 0
+                    ? Math.round(
+                        (segment.total /
+                          totalWeddingCost) *
+                          100
+                      )
+                    : 0;
+
+                const barWidth =
+                  Math.round(
+                    (segment.total /
+                      maxSegmentTotal) *
+                      100
+                  );
+
+                const paidPercentage =
+                  segment.total > 0
+                    ? Math.min(
+                        100,
+                        Math.round(
+                          (segment.paid /
+                            segment.total) *
+                            100
+                        )
+                      )
+                    : 0;
+
+                return (
+                  <div
+                    key={segment.name}
+                    className="rounded-xl border p-4"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-3 w-3 rounded-full ${segment.color}`}
+                          />
+
+                          <p className="font-semibold">
+                            {segment.name}
+                          </p>
+                        </div>
+
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {percentage}% of total tracked expenses
+                        </p>
+                      </div>
+
+                      <div className="text-left sm:text-right">
+                        <p className="text-lg font-bold">
+                          {formatCurrency(
+                            segment.total
+                          )}
+                        </p>
+
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(
+                            segment.balance
+                          )} balance
+                        </p>
+                      </div>
+
+                    </div>
+
+                    <div className="mt-4 h-3 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={`h-full rounded-full ${segment.color} transition-all`}
+                        style={{
+                          width: `${barWidth}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        Paid:{" "}
+                        <span className="font-medium text-foreground">
+                          {formatCurrency(
+                            segment.paid
+                          )}
+                        </span>
+                      </span>
+
+                      <span className="font-medium">
+                        {paidPercentage}% paid
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+            )}
+
+          </div>
+
+          {/* CATEGORY BREAKDOWN */}
+
+          <div className="mt-8 border-t pt-6">
+
+            <h3 className="text-lg font-bold">
+              Top Expense Categories
+            </h3>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Combined spending from budget, vendors and shopping.
+            </p>
+
+            {categoryExpenses.length === 0 ? (
+              <div className="mt-5 rounded-xl border border-dashed p-8 text-center">
+                <Wallet className="mx-auto h-8 w-8 text-muted-foreground" />
+
+                <p className="mt-2 text-sm font-medium">
+                  No expense categories yet
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Add budget, vendor or shopping expenses to see the breakdown.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-4">
+
+                {categoryExpenses.map(
+                  (category) => {
+                    const width =
+                      Math.round(
+                        (category.total /
+                          maxCategoryTotal) *
+                          100
+                      );
+
+                    return (
+                      <div
+                        key={category.name}
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-sm font-medium">
+                            {category.name}
+                          </span>
+
+                          <span className="text-sm font-semibold">
+                            {formatCurrency(
+                              category.total
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-emerald-600 transition-all"
+                            style={{
+                              width: `${width}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+
+              </div>
+            )}
+
+          </div>
+
+        </CardContent>
+      </Card>
 
       {/* PROGRESS CARDS */}
 
       <div className="grid gap-6 lg:grid-cols-3">
+
         <ProgressCard
           title="Tasks"
           percentage={taskProgress}
@@ -828,13 +1332,16 @@ export default async function DashboardPage({
           total={shopping.length}
           href={`/dashboard/shopping?event=${eventId}`}
         />
+
       </div>
 
       {/* BUDGET + VENDORS */}
 
       <div className="grid gap-6 lg:grid-cols-2">
+
         <Card>
           <CardContent className="p-6">
+
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-xl font-bold">
@@ -850,6 +1357,7 @@ export default async function DashboardPage({
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-4">
+
               <InfoBox
                 label="Estimated"
                 value={formatCurrency(
@@ -872,15 +1380,12 @@ export default async function DashboardPage({
               />
 
               <InfoBox
-                label="Remaining"
+                label="Balance"
                 value={formatCurrency(
-                  Math.max(
-                    0,
-                    estimatedBudget -
-                      actualBudget
-                  )
+                  budgetBalance
                 )}
               />
+
             </div>
 
             <Link
@@ -890,11 +1395,13 @@ export default async function DashboardPage({
               Manage Budget
               <ArrowRight className="h-4 w-4" />
             </Link>
+
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
+
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-xl font-bold">
@@ -910,6 +1417,7 @@ export default async function DashboardPage({
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-4">
+
               <InfoBox
                 label="Vendors"
                 value={String(
@@ -932,11 +1440,12 @@ export default async function DashboardPage({
               />
 
               <InfoBox
-                label="Remaining"
+                label="Balance"
                 value={formatCurrency(
                   vendorRemaining
                 )}
               />
+
             </div>
 
             <Link
@@ -946,14 +1455,17 @@ export default async function DashboardPage({
               Manage Vendors
               <ArrowRight className="h-4 w-4" />
             </Link>
+
           </CardContent>
         </Card>
+
       </div>
 
       {/* UPCOMING TASKS */}
 
       <Card>
         <CardContent className="p-6">
+
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-xl font-bold">
@@ -979,6 +1491,7 @@ export default async function DashboardPage({
           </div>
 
           <div className="mt-5 space-y-3">
+
             {upcomingTasks.length === 0 ? (
               <div className="rounded-lg border border-dashed p-6 text-center">
                 <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-600" />
@@ -1005,7 +1518,6 @@ export default async function DashboardPage({
 
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock3 className="h-3.5 w-3.5" />
-
                         {formatDate(
                           task.due_date
                         )}
@@ -1014,8 +1526,7 @@ export default async function DashboardPage({
 
                     <span className="ml-4 text-sm font-medium text-emerald-600">
                       {Number(
-                        task.completion_pct ||
-                          0
+                        task.completion_pct || 0
                       )}
                       %
                     </span>
@@ -1023,6 +1534,7 @@ export default async function DashboardPage({
                 )
               )
             )}
+
           </div>
         </CardContent>
       </Card>
@@ -1030,9 +1542,13 @@ export default async function DashboardPage({
       {/* NEEDS ATTENTION */}
 
       {(overdueTasks.length > 0 ||
-        pendingGuests > 0) && (
+        pendingGuests > 0 ||
+        shoppingBalance > 0 ||
+        vendorRemaining > 0 ||
+        budgetBalance > 0) && (
         <Card>
           <CardContent className="p-6">
+
             <div className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-orange-500" />
 
@@ -1042,12 +1558,11 @@ export default async function DashboardPage({
             </div>
 
             <div className="mt-5 space-y-3">
-              {overdueTasks.length >
-                0 && (
+
+              {overdueTasks.length > 0 && (
                 <AttentionItem
                   title={`${overdueTasks.length} overdue ${
-                    overdueTasks.length ===
-                    1
+                    overdueTasks.length === 1
                       ? "task"
                       : "tasks"
                   }`}
@@ -1056,8 +1571,7 @@ export default async function DashboardPage({
                 />
               )}
 
-              {pendingGuests >
-                0 && (
+              {pendingGuests > 0 && (
                 <AttentionItem
                   title={`${pendingGuests} guest${
                     pendingGuests === 1
@@ -1068,6 +1582,37 @@ export default async function DashboardPage({
                   href={`/dashboard/guests?event=${eventId}`}
                 />
               )}
+
+              {shoppingBalance > 0 && (
+                <AttentionItem
+                  title={`${formatCurrency(
+                    shoppingBalance
+                  )} shopping balance`}
+                  description="Some shopping payments are still pending."
+                  href={`/dashboard/shopping?event=${eventId}`}
+                />
+              )}
+
+              {vendorRemaining > 0 && (
+                <AttentionItem
+                  title={`${formatCurrency(
+                    vendorRemaining
+                  )} vendor balance`}
+                  description="Vendor payments are still outstanding."
+                  href={`/dashboard/vendors?event=${eventId}`}
+                />
+              )}
+
+              {budgetBalance > 0 && (
+                <AttentionItem
+                  title={`${formatCurrency(
+                    budgetBalance
+                  )} pending budget payments`}
+                  description="Some recorded budget expenses are not marked as paid."
+                  href={`/dashboard/budget?event=${eventId}`}
+                />
+              )}
+
             </div>
           </CardContent>
         </Card>
@@ -1077,11 +1622,13 @@ export default async function DashboardPage({
 
       <Card>
         <CardContent className="p-6">
+
           <h2 className="text-xl font-bold">
             Quick Actions
           </h2>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
             <QuickAction
               label="Tasks"
               href={`/dashboard/tasks?event=${eventId}`}
@@ -1113,16 +1660,19 @@ export default async function DashboardPage({
                 <Store className="h-5 w-5" />
               }
             />
+
           </div>
+
         </CardContent>
       </Card>
+
     </div>
   );
 }
 
-/* -------------------------------------------------
+/* =====================================================
    DASHBOARD STAT
-------------------------------------------------- */
+===================================================== */
 
 function DashboardStat({
   title,
@@ -1141,6 +1691,7 @@ function DashboardStat({
     <Link href={href}>
       <Card className="h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
         <CardContent className="p-5">
+
           <div className="flex items-start justify-between">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
               {icon}
@@ -1160,15 +1711,158 @@ function DashboardStat({
           <p className="mt-1 text-xs text-muted-foreground">
             {description}
           </p>
+
         </CardContent>
       </Card>
     </Link>
   );
 }
 
-/* -------------------------------------------------
+/* =====================================================
+   MONEY CENTER CARD
+===================================================== */
+
+function MoneyCenterCard({
+  title,
+  value,
+  description,
+  icon,
+}: {
+  title: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border bg-background p-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {title}
+          </p>
+
+          <p className="mt-2 text-2xl font-bold">
+            {value}
+          </p>
+
+          <p className="mt-1 text-xs text-muted-foreground">
+            {description}
+          </p>
+        </div>
+
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   MONEY SOURCE CARD
+===================================================== */
+
+function MoneySourceCard({
+  title,
+  total,
+  paid,
+  balance,
+}: {
+  title: string;
+  total: number;
+  paid: number;
+  balance: number;
+}) {
+  const progress =
+    total > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (paid / total) * 100
+          )
+        )
+      : 0;
+
+  return (
+    <div className="rounded-xl border p-4 transition hover:border-emerald-300 hover:bg-emerald-50/30">
+
+      <div className="flex items-center justify-between">
+        <p className="font-semibold">
+          {title}
+        </p>
+
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <SmallMoney
+          label="Total"
+          value={formatCurrency(total)}
+        />
+
+        <SmallMoney
+          label="Paid"
+          value={formatCurrency(paid)}
+        />
+
+        <SmallMoney
+          label="Balance"
+          value={formatCurrency(balance)}
+        />
+      </div>
+
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">
+            Paid
+          </span>
+
+          <span className="font-semibold">
+            {progress}%
+          </span>
+        </div>
+
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-emerald-600"
+            style={{
+              width: `${progress}%`,
+            }}
+          />
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+/* =====================================================
+   SMALL MONEY
+===================================================== */
+
+function SmallMoney({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-lg bg-muted/50 p-2">
+      <p className="text-[10px] text-muted-foreground">
+        {label}
+      </p>
+
+      <p className="mt-1 text-xs font-semibold">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/* =====================================================
    PROGRESS CARD
-------------------------------------------------- */
+===================================================== */
 
 function ProgressCard({
   title,
@@ -1187,6 +1881,7 @@ function ProgressCard({
     <Link href={href}>
       <Card className="h-full transition-all hover:shadow-md">
         <CardContent className="p-6">
+
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">
               {title}
@@ -1215,15 +1910,16 @@ function ProgressCard({
           <p className="mt-3 text-xs text-muted-foreground">
             {completed} of {total} completed
           </p>
+
         </CardContent>
       </Card>
     </Link>
   );
 }
 
-/* -------------------------------------------------
+/* =====================================================
    INFO BOX
-------------------------------------------------- */
+===================================================== */
 
 function InfoBox({
   label,
@@ -1245,9 +1941,9 @@ function InfoBox({
   );
 }
 
-/* -------------------------------------------------
+/* =====================================================
    ATTENTION ITEM
-------------------------------------------------- */
+===================================================== */
 
 function AttentionItem({
   title,
@@ -1278,9 +1974,9 @@ function AttentionItem({
   );
 }
 
-/* -------------------------------------------------
+/* =====================================================
    QUICK ACTION
-------------------------------------------------- */
+===================================================== */
 
 function QuickAction({
   label,
@@ -1307,17 +2003,18 @@ function QuickAction({
   );
 }
 
-/* -------------------------------------------------
+/* =====================================================
    RSVP NORMALIZER
-------------------------------------------------- */
+===================================================== */
 
 function normalizeRsvp(
   status: string | null
 ) {
-  const value =
-    String(status || "pending")
-      .trim()
-      .toLowerCase();
+  const value = String(
+    status || "pending"
+  )
+    .trim()
+    .toLowerCase();
 
   if (
     value === "accepted" ||
@@ -1339,9 +2036,9 @@ function normalizeRsvp(
   return "pending";
 }
 
-/* -------------------------------------------------
+/* =====================================================
    CURRENCY
-------------------------------------------------- */
+===================================================== */
 
 function formatCurrency(
   amount: number
@@ -1356,9 +2053,9 @@ function formatCurrency(
   ).format(amount || 0);
 }
 
-/* -------------------------------------------------
+/* =====================================================
    DATE
-------------------------------------------------- */
+===================================================== */
 
 function formatDate(
   date: string | null

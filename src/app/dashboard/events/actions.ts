@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 /* -------------------------------------------------
    ADD EVENT
@@ -65,7 +66,7 @@ export async function addEvent(formData: FormData) {
 }
 
 /* -------------------------------------------------
-   DELETE EVENT
+   DELETE ENTIRE EVENT
 ------------------------------------------------- */
 
 export async function deleteEvent(
@@ -73,28 +74,89 @@ export async function deleteEvent(
 ) {
   const supabase = (await createClient()) as any;
 
-  if (!id) {
-    throw new Error("Event ID is required.");
+  const eventId = String(id || "").trim();
+
+  if (!eventId) {
+    throw new Error(
+      "Event ID is required."
+    );
   }
 
-  const { error } = await supabase
-    .from("events")
-    .delete()
-    .eq("id", id);
+  /*
+    Delete all data belonging to this event
+    before deleting the event itself.
+  */
 
-  if (error) {
+  const tables = [
+    "tasks",
+    "guests",
+    "shopping_items",
+    "budget_items",
+    "vendors",
+  ];
+
+  for (const table of tables) {
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq("event_id", eventId);
+
+    if (error) {
+      console.error(
+        `Failed to delete ${table}:`,
+        error
+      );
+
+      throw new Error(
+        `Failed to delete event data from ${table}: ${error.message}`
+      );
+    }
+  }
+
+  /*
+    Delete the actual event.
+  */
+
+  const { error: eventError } =
+    await supabase
+      .from("events")
+      .delete()
+      .eq("id", eventId);
+
+  if (eventError) {
     console.error(
       "Failed to delete event:",
-      error
+      eventError
     );
 
     throw new Error(
-      `Failed to delete event: ${error.message}`
+      `Failed to delete event: ${eventError.message}`
     );
   }
 
+  /*
+    Refresh pages that depend on events.
+  */
+
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/events");
+  revalidatePath("/dashboard/tasks");
+  revalidatePath("/dashboard/guests");
+  revalidatePath("/dashboard/shopping");
+  revalidatePath("/dashboard/budget");
+  revalidatePath("/dashboard/vendors");
+  revalidatePath("/dashboard/analytics");
+  revalidatePath(
+    "/dashboard/notifications"
+  );
+
+  /*
+    IMPORTANT:
+    Redirect after deletion so the deleted
+    event workspace is never rendered again.
+  */
+
+  redirect("/dashboard/events");
 }
 
 /* -------------------------------------------------
@@ -136,10 +198,14 @@ export async function updateEvent(
     .from("events")
     .update({
       name,
-      description: description || null,
-      event_date: eventDate || null,
-      event_type: eventType || "Wedding",
-      updated_at: new Date().toISOString(),
+      description:
+        description || null,
+      event_date:
+        eventDate || null,
+      event_type:
+        eventType || "Wedding",
+      updated_at:
+        new Date().toISOString(),
     })
     .eq("id", id);
 
@@ -169,7 +235,9 @@ export async function updateEventProgress(
   const supabase = (await createClient()) as any;
 
   if (!id) {
-    throw new Error("Event ID is required.");
+    throw new Error(
+      "Event ID is required."
+    );
   }
 
   const completion =
@@ -185,7 +253,8 @@ export async function updateEventProgress(
     .from("events")
     .update({
       completion_pct: completion,
-      updated_at: new Date().toISOString(),
+      updated_at:
+        new Date().toISOString(),
     })
     .eq("id", id);
 
