@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { ReactNode } from "react";
 
 import {
   BarChart3,
@@ -7,14 +8,12 @@ import {
   Wallet,
   ShoppingBag,
   Store,
-  AlertTriangle,
   TrendingUp,
+  CalendarDays,
+  CircleDollarSign,
 } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface Props {
   searchParams: Promise<{
@@ -22,1042 +21,1025 @@ interface Props {
   }>;
 }
 
-export const dynamic = "force-dynamic";
-
-type EventData = {
+type EventRow = {
   id: string;
   name: string;
 };
 
-type Task = {
+type TaskRow = {
+  id: string;
+  event_id: string;
   status?: string | null;
   completion_pct?: number | null;
 };
 
-type Guest = {
+type GuestRow = {
+  id: string;
+  event_id: string;
   rsvp_status?: string | null;
-  plus_one?: boolean | null;
 };
 
-type ShoppingItem = {
+type ShoppingRow = {
+  id: string;
+  event_id: string;
+  price?: number | null;
+  paid?: number | null;
   purchased?: boolean | null;
-  estimated_price?: number | null;
-  actual_price?: number | null;
-  quantity?: number | null;
 };
 
-type BudgetItem = {
-  category?: string | null;
+type BudgetRow = {
+  id: string;
+  event_id: string;
   estimated_amount?: number | null;
   actual_amount?: number | null;
   paid?: boolean | null;
+  category?: string | null;
 };
 
-type Vendor = {
+type VendorRow = {
+  id: string;
+  event_id: string;
   total_amount?: number | null;
   advance_paid?: number | null;
 };
 
-export default async function AnalyticsPage({
-  searchParams,
-}: Props) {
-  const { event } = await searchParams;
+type EventAnalytics = {
+  event: EventRow;
+  tasks: number;
+  completedTasks: number;
+  taskProgress: number;
+  guests: number;
+  acceptedGuests: number;
+  respondedGuests: number;
+  rsvpProgress: number;
+  shoppingItems: number;
+  purchasedItems: number;
+  shoppingProgress: number;
+  shoppingTotal: number;
+  shoppingPaid: number;
+  shoppingBalance: number;
+  estimatedBudget: number;
+  actualBudget: number;
+  paidBudget: number;
+  budgetBalance: number;
+  vendors: number;
+  vendorTotal: number;
+  vendorPaid: number;
+  vendorBalance: number;
+  totalExpense: number;
+  totalPaid: number;
+  totalBalance: number;
+  overallProgress: number;
+};
 
-  const supabase = await createClient();
+export const dynamic = "force-dynamic";
 
-  /* ---------------- EVENT ---------------- */
+const formatCurrency = (value: number) =>
+  `₹${Math.round(value || 0).toLocaleString("en-IN")}`;
 
-  let eventData: EventData | null = null;
+function percentage(value: number, total: number) {
+  return total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
+}
 
-  if (event) {
-    const result = await supabase
-      .from("events")
-      .select("id, name")
-      .eq("id", event)
-      .single();
+function buildEventAnalytics(
+  event: EventRow,
+  tasks: TaskRow[],
+  guests: GuestRow[],
+  shopping: ShoppingRow[],
+  budget: BudgetRow[],
+  vendors: VendorRow[]
+): EventAnalytics {
+  const eventTasks = tasks.filter((item) => item.event_id === event.id);
+  const eventGuests = guests.filter((item) => item.event_id === event.id);
+  const eventShopping = shopping.filter((item) => item.event_id === event.id);
+  const eventBudget = budget.filter((item) => item.event_id === event.id);
+  const eventVendors = vendors.filter((item) => item.event_id === event.id);
 
-    const data = result.data as unknown as EventData | null;
-
-    if (data) {
-      eventData = {
-        id: String(data.id),
-        name: String(data.name || "Your Wedding"),
-      };
-    }
-  }
-
-  /* ---------------- DATA ---------------- */
-
-  let tasks: Task[] = [];
-  let guests: Guest[] = [];
-  let shoppingItems: ShoppingItem[] = [];
-  let budgetItems: BudgetItem[] = [];
-  let vendors: Vendor[] = [];
-
-  if (event) {
-    const [
-      tasksResult,
-      guestsResult,
-      shoppingResult,
-      budgetResult,
-      vendorsResult,
-    ] = await Promise.all([
-      supabase
-        .from("tasks")
-        .select("*")
-        .eq("event_id", event),
-
-      supabase
-        .from("guests")
-        .select("*")
-        .eq("event_id", event),
-
-      supabase
-        .from("shopping_items")
-        .select("*")
-        .eq("event_id", event),
-
-      supabase
-        .from("budget_items")
-        .select("*")
-        .eq("event_id", event),
-
-      supabase
-        .from("vendors")
-        .select("*")
-        .eq("event_id", event),
-    ]);
-
-    if (tasksResult.error) {
-      console.error(
-        "Failed to load analytics tasks:",
-        tasksResult.error
-      );
-    }
-
-    if (guestsResult.error) {
-      console.error(
-        "Failed to load analytics guests:",
-        guestsResult.error
-      );
-    }
-
-    if (shoppingResult.error) {
-      console.error(
-        "Failed to load analytics shopping:",
-        shoppingResult.error
-      );
-    }
-
-    if (budgetResult.error) {
-      console.error(
-        "Failed to load analytics budget:",
-        budgetResult.error
-      );
-    }
-
-    if (vendorsResult.error) {
-      console.error(
-        "Failed to load analytics vendors:",
-        vendorsResult.error
-      );
-    }
-
-    tasks = (tasksResult.data ?? []) as unknown as Task[];
-    guests = (guestsResult.data ?? []) as unknown as Guest[];
-    shoppingItems =
-      (shoppingResult.data ?? []) as unknown as ShoppingItem[];
-    budgetItems =
-      (budgetResult.data ?? []) as unknown as BudgetItem[];
-    vendors =
-      (vendorsResult.data ?? []) as unknown as Vendor[];
-  }
-
-  /* ---------------- TASKS ---------------- */
-
-  const totalTasks = tasks.length;
-
-  const completedTasks = tasks.filter(
+  const completedTasks = eventTasks.filter(
     (task) =>
       task.status === "completed" ||
-      Number(task.completion_pct ?? 0) >= 100
+      Number(task.completion_pct || 0) >= 100
   ).length;
 
-  const inProgressTasks = tasks.filter(
-    (task) => task.status === "in_progress"
-  ).length;
-
-  const notStartedTasks = tasks.filter(
-    (task) =>
-      task.status === "not_started" ||
-      !task.status
-  ).length;
-
-  const taskCompletion =
-    totalTasks > 0
+  const taskProgress =
+    eventTasks.length > 0
       ? Math.round(
-          tasks.reduce(
+          eventTasks.reduce(
             (sum, task) =>
               sum +
               (task.status === "completed"
                 ? 100
-                : Number(task.completion_pct ?? 0)),
+                : Number(task.completion_pct || 0)),
             0
-          ) / totalTasks
+          ) / eventTasks.length
         )
       : 0;
 
-  /* ---------------- GUESTS ---------------- */
-
-  const totalGuests = guests.length;
-
-  const acceptedGuests = guests.filter(
+  const acceptedGuests = eventGuests.filter(
     (guest) => guest.rsvp_status === "Accepted"
   ).length;
 
-  const pendingGuests = guests.filter(
-    (guest) => guest.rsvp_status === "Pending"
+  const respondedGuests = eventGuests.filter(
+    (guest) =>
+      guest.rsvp_status === "Accepted" ||
+      guest.rsvp_status === "Declined"
   ).length;
 
-  const invitedGuests = guests.filter(
-    (guest) => guest.rsvp_status === "Invited"
-  ).length;
+  const rsvpProgress = percentage(
+    respondedGuests,
+    eventGuests.length
+  );
 
-  const declinedGuests = guests.filter(
-    (guest) => guest.rsvp_status === "Declined"
-  ).length;
-
-  const plusOneGuests = guests.filter(
-    (guest) => guest.plus_one === true
-  ).length;
-
-  const respondedGuests =
-    acceptedGuests + declinedGuests;
-
-  const rsvpResponseRate =
-    totalGuests > 0
-      ? Math.round(
-          (respondedGuests / totalGuests) * 100
-        )
-      : 0;
-
-  /* ---------------- SHOPPING ---------------- */
-
-  const totalShoppingItems =
-    shoppingItems.length;
-
-  const purchasedItems = shoppingItems.filter(
+  const purchasedItems = eventShopping.filter(
     (item) => item.purchased === true
   ).length;
 
-  const pendingShoppingItems =
-    totalShoppingItems - purchasedItems;
+  const shoppingProgress = percentage(
+    purchasedItems,
+    eventShopping.length
+  );
 
-  const shoppingProgress =
-    totalShoppingItems > 0
-      ? Math.round(
-          (purchasedItems / totalShoppingItems) * 100
-        )
-      : 0;
+  const shoppingTotal = eventShopping.reduce(
+    (sum, item) => sum + Number(item.price || 0),
+    0
+  );
 
-  const shoppingEstimated =
-    shoppingItems.reduce(
-      (sum, item) =>
-        sum +
-        Number(item.estimated_price ?? 0) *
-          Number(item.quantity ?? 0),
+  const shoppingPaid = eventShopping.reduce(
+    (sum, item) => sum + Number(item.paid || 0),
+    0
+  );
+
+  const estimatedBudget = eventBudget.reduce(
+    (sum, item) => sum + Number(item.estimated_amount || 0),
+    0
+  );
+
+  const actualBudget = eventBudget.reduce(
+    (sum, item) => sum + Number(item.actual_amount || 0),
+    0
+  );
+
+  const paidBudget = eventBudget
+    .filter((item) => item.paid === true)
+    .reduce(
+      (sum, item) => sum + Number(item.actual_amount || 0),
       0
     );
 
-  const shoppingActual =
-    shoppingItems.reduce(
-      (sum, item) =>
-        sum +
-        Number(item.actual_price ?? 0) *
-          Number(item.quantity ?? 0),
-      0
-    );
+  const vendorTotal = eventVendors.reduce(
+    (sum, vendor) => sum + Number(vendor.total_amount || 0),
+    0
+  );
 
-  /* ---------------- BUDGET ---------------- */
+  const vendorPaid = eventVendors.reduce(
+    (sum, vendor) => sum + Number(vendor.advance_paid || 0),
+    0
+  );
 
-  const estimatedBudget =
-    budgetItems.reduce(
-      (sum, item) =>
-        sum + Number(item.estimated_amount ?? 0),
-      0
-    );
+  const totalExpense =
+    actualBudget + vendorTotal + shoppingTotal;
 
-  const actualBudget =
-    budgetItems.reduce(
-      (sum, item) =>
-        sum + Number(item.actual_amount ?? 0),
-      0
-    );
+  const totalPaid =
+    paidBudget + vendorPaid + shoppingPaid;
 
-  const remainingBudget =
-    estimatedBudget - actualBudget;
-
-  const budgetProgress =
-    estimatedBudget > 0
-      ? Math.min(
-          Math.round(
-            (actualBudget / estimatedBudget) * 100
-          ),
-          100
-        )
-      : 0;
-
-  const paidBudgetItems =
-    budgetItems.filter(
-      (item) => item.paid === true
-    ).length;
-
-  const pendingBudgetItems =
-    budgetItems.length - paidBudgetItems;
-
-  /* ---------------- VENDORS ---------------- */
-
-  const totalVendors = vendors.length;
-
-  const totalVendorCost =
-    vendors.reduce(
-      (sum, vendor) =>
-        sum + Number(vendor.total_amount ?? 0),
-      0
-    );
-
-  const totalVendorAdvance =
-    vendors.reduce(
-      (sum, vendor) =>
-        sum + Number(vendor.advance_paid ?? 0),
-      0
-    );
-
-  const remainingVendorPayment =
-    totalVendorCost - totalVendorAdvance;
-
-  const fullyPaidVendors =
-    vendors.filter(
-      (vendor) =>
-        Number(vendor.total_amount ?? 0) > 0 &&
-        Number(vendor.advance_paid ?? 0) >=
-          Number(vendor.total_amount ?? 0)
-    ).length;
-
-  const vendorPaymentProgress =
-    totalVendorCost > 0
-      ? Math.min(
-          Math.round(
-            (totalVendorAdvance /
-              totalVendorCost) *
-              100
-          ),
-          100
-        )
-      : 0;
-
-  /* ---------------- OVERALL ---------------- */
+  const totalBalance = Math.max(
+    0,
+    totalExpense - totalPaid
+  );
 
   const overallProgress =
     Math.round(
-      (taskCompletion +
-        shoppingProgress +
-        rsvpResponseRate) /
+      (taskProgress + rsvpProgress + shoppingProgress) / 3
+    );
+
+  return {
+    event,
+    tasks: eventTasks.length,
+    completedTasks,
+    taskProgress,
+    guests: eventGuests.length,
+    acceptedGuests,
+    respondedGuests,
+    rsvpProgress,
+    shoppingItems: eventShopping.length,
+    purchasedItems,
+    shoppingProgress,
+    shoppingTotal,
+    shoppingPaid,
+    shoppingBalance: Math.max(0, shoppingTotal - shoppingPaid),
+    estimatedBudget,
+    actualBudget,
+    paidBudget,
+    budgetBalance: Math.max(0, actualBudget - paidBudget),
+    vendors: eventVendors.length,
+    vendorTotal,
+    vendorPaid,
+    vendorBalance: Math.max(0, vendorTotal - vendorPaid),
+    totalExpense,
+    totalPaid,
+    totalBalance,
+    overallProgress,
+  };
+}
+
+export default async function AnalyticsPage({
+  searchParams,
+}: Props) {
+  const { event: selectedEventId } = await searchParams;
+
+  const supabase = await createClient();
+
+  const [
+    eventsResult,
+    tasksResult,
+    guestsResult,
+    shoppingResult,
+    budgetResult,
+    vendorsResult,
+  ] = await Promise.all([
+    supabase.from("events").select("id, name").order("name"),
+    supabase.from("tasks").select("id, event_id, status, completion_pct"),
+    supabase.from("guests").select("id, event_id, rsvp_status"),
+    supabase
+      .from("shopping_items")
+      .select("id, event_id, price, paid, purchased"),
+    supabase
+      .from("budget_items")
+      .select(
+        "id, event_id, estimated_amount, actual_amount, paid, category"
+      ),
+    supabase
+      .from("vendors")
+      .select("id, event_id, total_amount, advance_paid"),
+  ]);
+
+  if (eventsResult.error) {
+    console.error("Failed to load analytics events:", eventsResult.error);
+  }
+  if (tasksResult.error) {
+    console.error("Failed to load analytics tasks:", tasksResult.error);
+  }
+  if (guestsResult.error) {
+    console.error("Failed to load analytics guests:", guestsResult.error);
+  }
+  if (shoppingResult.error) {
+    console.error(
+      "Failed to load analytics shopping:",
+      shoppingResult.error
+    );
+  }
+  if (budgetResult.error) {
+    console.error("Failed to load analytics budget:", budgetResult.error);
+  }
+  if (vendorsResult.error) {
+    console.error("Failed to load analytics vendors:", vendorsResult.error);
+  }
+
+  const events = (eventsResult.data || []) as EventRow[];
+  const tasks = (tasksResult.data || []) as TaskRow[];
+  const guests = (guestsResult.data || []) as GuestRow[];
+  const shopping = (shoppingResult.data || []) as ShoppingRow[];
+  const budget = (budgetResult.data || []) as BudgetRow[];
+  const vendors = (vendorsResult.data || []) as VendorRow[];
+
+  const analytics = events.map((item) =>
+    buildEventAnalytics(
+      item,
+      tasks,
+      guests,
+      shopping,
+      budget,
+      vendors
+    )
+  );
+
+  const totalTasks = analytics.reduce(
+    (sum, item) => sum + item.tasks,
+    0
+  );
+  const completedTasks = analytics.reduce(
+    (sum, item) => sum + item.completedTasks,
+    0
+  );
+  const totalGuests = analytics.reduce(
+    (sum, item) => sum + item.guests,
+    0
+  );
+  const acceptedGuests = analytics.reduce(
+    (sum, item) => sum + item.acceptedGuests,
+    0
+  );
+  const respondedGuests = analytics.reduce(
+    (sum, item) => sum + item.respondedGuests,
+    0
+  );
+  const totalShoppingItems = analytics.reduce(
+    (sum, item) => sum + item.shoppingItems,
+    0
+  );
+  const purchasedItems = analytics.reduce(
+    (sum, item) => sum + item.purchasedItems,
+    0
+  );
+  const estimatedBudget = analytics.reduce(
+    (sum, item) => sum + item.estimatedBudget,
+    0
+  );
+  const actualBudget = analytics.reduce(
+    (sum, item) => sum + item.actualBudget,
+    0
+  );
+  const paidBudget = analytics.reduce(
+    (sum, item) => sum + item.paidBudget,
+    0
+  );
+  const totalVendors = analytics.reduce(
+    (sum, item) => sum + item.vendors,
+    0
+  );
+  const vendorTotal = analytics.reduce(
+    (sum, item) => sum + item.vendorTotal,
+    0
+  );
+  const vendorPaid = analytics.reduce(
+    (sum, item) => sum + item.vendorPaid,
+    0
+  );
+  const shoppingTotal = analytics.reduce(
+    (sum, item) => sum + item.shoppingTotal,
+    0
+  );
+  const shoppingPaid = analytics.reduce(
+    (sum, item) => sum + item.shoppingPaid,
+    0
+  );
+
+  const totalExpenses =
+    actualBudget + vendorTotal + shoppingTotal;
+  const totalPaid =
+    paidBudget + vendorPaid + shoppingPaid;
+  const totalBalance = Math.max(
+    0,
+    totalExpenses - totalPaid
+  );
+
+  const overallTaskProgress = percentage(
+    completedTasks,
+    totalTasks
+  );
+  const overallRsvpProgress = percentage(
+    respondedGuests,
+    totalGuests
+  );
+  const overallShoppingProgress = percentage(
+    purchasedItems,
+    totalShoppingItems
+  );
+  const overallPlanningProgress =
+    Math.round(
+      (overallTaskProgress +
+        overallRsvpProgress +
+        overallShoppingProgress) /
         3
     );
 
-  /* ---------------- BUDGET CATEGORIES ---------------- */
+  const selectedAnalytics = analytics.find(
+    (item) => item.event.id === selectedEventId
+  );
 
-  const budgetCategories =
-    budgetItems.reduce(
-      (
-        result: Record<string, number>,
-        item
-      ) => {
-        const category =
-          item.category || "Other";
-
-        result[category] =
-          (result[category] || 0) +
-          Number(item.actual_amount ?? 0);
-
-        return result;
-      },
-      {}
-    );
-
-  const budgetCategoryEntries =
-    Object.entries(budgetCategories).sort(
-      ([, a], [, b]) =>
-        Number(b) - Number(a)
-    );
-
-  /* ---------------- NO EVENT ---------------- */
-
-  if (!event) {
+  if (selectedEventId && selectedAnalytics) {
     return (
       <div className="space-y-8">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-4xl font-bold">
-              Analytics
-            </h1>
+        <PageHeader
+          title="Analytics"
+          subtitle={`Detailed analytics for ${selectedAnalytics.event.name}`}
+        />
 
-            <p className="mt-2 text-muted-foreground">
-              Charts and insights for wedding
-              planning progress.
-            </p>
-          </div>
+        <AllEventsSummary
+          eventsCount={events.length}
+          totalExpenses={totalExpenses}
+          totalPaid={totalPaid}
+          totalBalance={totalBalance}
+          planningProgress={overallPlanningProgress}
+          href="/dashboard/analytics"
+        />
 
-          <BarChart3 className="h-7 w-7 text-emerald-600" />
-        </div>
-
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-24 text-center">
-            <BarChart3 className="mb-5 h-14 w-14 text-muted-foreground" />
-
-            <h2 className="text-2xl font-bold">
-              Select an event
-            </h2>
-
-            <p className="mt-2 max-w-md text-muted-foreground">
-              Open Analytics from an event to see
-              real-time planning statistics, budget
-              insights, guests, shopping and vendors.
-            </p>
-          </CardContent>
-        </Card>
+        <EventAnalyticsView data={selectedAnalytics} />
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* HEADER */}
+      <PageHeader
+        title="Analytics"
+        subtitle="Overall wedding analytics across every event"
+      />
 
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Analytics
-          </h1>
-
-          <p className="mt-2 text-muted-foreground">
-            Planning insights for{" "}
-            <span className="font-medium text-foreground">
-              {eventData
-                ? eventData.name
-                : "your wedding"}
-            </span>
-          </p>
-        </div>
-
-        <BarChart3 className="h-7 w-7 text-emerald-600" />
-      </div>
-
-      {/* OVERALL PROGRESS */}
-
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-6">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
-
                 <h2 className="text-2xl font-bold">
                   Overall Planning Progress
                 </h2>
               </div>
-
               <p className="mt-1 text-sm text-muted-foreground">
-                Based on tasks, shopping and RSVP
-                response progress.
+                Combined progress from tasks, guest RSVPs and shopping
+                across all events.
               </p>
             </div>
-
             <div className="text-4xl font-bold text-emerald-600">
-              {overallProgress}%
+              {overallPlanningProgress}%
             </div>
           </div>
 
           <div className="mt-5 h-4 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-emerald-600 transition-all"
-              style={{
-                width: `${overallProgress}%`,
-              }}
+              style={{ width: `${overallPlanningProgress}%` }}
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* MAIN STATS */}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card>
-          <CardContent className="p-5">
-            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-
-            <p className="mt-4 text-sm text-muted-foreground">
-              Task Progress
-            </p>
-
-            <p className="mt-1 text-3xl font-bold">
-              {taskCompletion}%
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              {completedTasks}/{totalTasks} completed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <Users className="h-6 w-6 text-blue-600" />
-
-            <p className="mt-4 text-sm text-muted-foreground">
-              Guests
-            </p>
-
-            <p className="mt-1 text-3xl font-bold">
-              {totalGuests}
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              {acceptedGuests} accepted
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <Wallet className="h-6 w-6 text-emerald-600" />
-
-            <p className="mt-4 text-sm text-muted-foreground">
-              Budget Used
-            </p>
-
-            <p className="mt-1 text-3xl font-bold">
-              {budgetProgress}%
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              ₹{actualBudget.toLocaleString("en-IN")}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <ShoppingBag className="h-6 w-6 text-purple-600" />
-
-            <p className="mt-4 text-sm text-muted-foreground">
-              Shopping
-            </p>
-
-            <p className="mt-1 text-3xl font-bold">
-              {shoppingProgress}%
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              {purchasedItems}/{totalShoppingItems} purchased
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <Store className="h-6 w-6 text-orange-600" />
-
-            <p className="mt-4 text-sm text-muted-foreground">
-              Vendors
-            </p>
-
-            <p className="mt-1 text-3xl font-bold">
-              {totalVendors}
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              {fullyPaidVendors} fully paid
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          title="Events"
+          value={events.length}
+          description="All wedding events"
+          icon={<CalendarDays className="h-6 w-6 text-emerald-600" />}
+        />
+        <StatCard
+          title="Tasks"
+          value={`${completedTasks}/${totalTasks}`}
+          description={`${overallTaskProgress}% completed`}
+          icon={<CheckCircle2 className="h-6 w-6 text-emerald-600" />}
+        />
+        <StatCard
+          title="Guests"
+          value={totalGuests}
+          description={`${acceptedGuests} accepted`}
+          icon={<Users className="h-6 w-6 text-blue-600" />}
+        />
+        <StatCard
+          title="Shopping"
+          value={`${purchasedItems}/${totalShoppingItems}`}
+          description={`${overallShoppingProgress}% purchased`}
+          icon={<ShoppingBag className="h-6 w-6 text-purple-600" />}
+        />
+        <StatCard
+          title="Vendors"
+          value={totalVendors}
+          description={`${formatCurrency(vendorPaid)} paid`}
+          icon={<Store className="h-6 w-6 text-orange-600" />}
+        />
       </div>
 
-      {/* TASK ANALYTICS + RSVP */}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold">
-              Task Status
-            </h2>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Current task completion breakdown.
-            </p>
-
-            <div className="mt-6 space-y-5">
-              <AnalyticsBar
-                label="Completed"
-                value={completedTasks}
-                total={totalTasks}
-                color="bg-emerald-600"
-              />
-
-              <AnalyticsBar
-                label="In Progress"
-                value={inProgressTasks}
-                total={totalTasks}
-                color="bg-blue-600"
-              />
-
-              <AnalyticsBar
-                label="Not Started"
-                value={notStartedTasks}
-                total={totalTasks}
-                color="bg-gray-400"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold">
-              Guest RSVP
-            </h2>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Response status across your guest list.
-            </p>
-
-            <div className="mt-6 space-y-5">
-              <AnalyticsBar
-                label="Accepted"
-                value={acceptedGuests}
-                total={totalGuests}
-                color="bg-emerald-600"
-              />
-
-              <AnalyticsBar
-                label="Invited"
-                value={invitedGuests}
-                total={totalGuests}
-                color="bg-blue-600"
-              />
-
-              <AnalyticsBar
-                label="Pending"
-                value={pendingGuests}
-                total={totalGuests}
-                color="bg-yellow-500"
-              />
-
-              <AnalyticsBar
-                label="Declined"
-                value={declinedGuests}
-                total={totalGuests}
-                color="bg-red-500"
-              />
-            </div>
-
-            <div className="mt-6 rounded-lg bg-muted/50 p-4">
-              <p className="text-sm text-muted-foreground">
-                RSVP response rate
-              </p>
-
-              <p className="mt-1 text-2xl font-bold">
-                {rsvpResponseRate}%
-              </p>
-            </div>
-
-            {plusOneGuests > 0 && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                {plusOneGuests} guests have a plus-one.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* BUDGET + SHOPPING */}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold">
-              Budget Overview
-            </h2>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Estimated vs actual wedding spending.
-            </p>
-
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Estimated
-                </span>
-
-                <span className="font-bold">
-                  ₹
-                  {estimatedBudget.toLocaleString(
-                    "en-IN"
-                  )}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Actual
-                </span>
-
-                <span className="font-bold text-emerald-600">
-                  ₹
-                  {actualBudget.toLocaleString(
-                    "en-IN"
-                  )}
-                </span>
-              </div>
-
-              <div className="h-3 overflow-hidden rounded-full bg-muted">
-                <div
-                  className={`h-full rounded-full ${
-                    actualBudget > estimatedBudget
-                      ? "bg-red-500"
-                      : "bg-emerald-600"
-                  }`}
-                  style={{
-                    width: `${budgetProgress}%`,
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  {remainingBudget >= 0
-                    ? "Remaining"
-                    : "Over budget"}
-                </span>
-
-                <span
-                  className={`font-bold ${
-                    remainingBudget < 0
-                      ? "text-red-600"
-                      : "text-emerald-600"
-                  }`}
-                >
-                  ₹
-                  {Math.abs(
-                    remainingBudget
-                  ).toLocaleString("en-IN")}
-                </span>
-              </div>
-            </div>
-
-            {budgetCategoryEntries.length > 0 && (
-              <div className="mt-8">
-                <h3 className="font-semibold">
-                  Spending by Category
-                </h3>
-
-                <div className="mt-4 space-y-4">
-                  {budgetCategoryEntries.map(
-                    ([category, amount]) => {
-                      const percentage =
-                        actualBudget > 0
-                          ? Math.round(
-                              (Number(amount) /
-                                actualBudget) *
-                                100
-                            )
-                          : 0;
-
-                      return (
-                        <div key={category}>
-                          <div className="mb-1 flex justify-between text-sm">
-                            <span>{category}</span>
-
-                            <span className="font-medium">
-                              ₹
-                              {Number(
-                                amount
-                              ).toLocaleString(
-                                "en-IN"
-                              )}
-                            </span>
-                          </div>
-
-                          <div className="h-2 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full rounded-full bg-emerald-600"
-                              style={{
-                                width: `${percentage}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold">
-              Shopping Overview
-            </h2>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Track purchased and pending shopping items.
-            </p>
-
-            <div className="mt-6">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Progress
-                </span>
-
-                <span className="font-bold">
-                  {shoppingProgress}%
-                </span>
-              </div>
-
-              <div className="mt-2 h-4 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-purple-600"
-                  style={{
-                    width: `${shoppingProgress}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-4">
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">
-                  Purchased
-                </p>
-
-                <p className="mt-1 text-2xl font-bold">
-                  {purchasedItems}
-                </p>
-              </div>
-
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">
-                  Pending
-                </p>
-
-                <p className="mt-1 text-2xl font-bold">
-                  {pendingShoppingItems}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  Estimated
-                </span>
-
-                <span className="font-medium">
-                  ₹
-                  {shoppingEstimated.toLocaleString(
-                    "en-IN"
-                  )}
-                </span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  Actual
-                </span>
-
-                <span className="font-medium">
-                  ₹
-                  {shoppingActual.toLocaleString(
-                    "en-IN"
-                  )}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* VENDORS */}
-
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-6">
-          <h2 className="text-2xl font-bold">
-            Vendor Payments
-          </h2>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            Vendor commitments and advance payments.
-          </p>
-
-          <div className="mt-6 grid gap-5 md:grid-cols-4">
+          <div className="flex items-start gap-3">
+            <CircleDollarSign className="mt-1 h-6 w-6 text-emerald-600" />
             <div>
-              <p className="text-sm text-muted-foreground">
-                Vendors
-              </p>
-
-              <p className="mt-1 text-2xl font-bold">
-                {totalVendors}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Total Cost
-              </p>
-
-              <p className="mt-1 text-2xl font-bold">
-                ₹
-                {totalVendorCost.toLocaleString(
-                  "en-IN"
-                )}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Advance Paid
-              </p>
-
-              <p className="mt-1 text-2xl font-bold text-emerald-600">
-                ₹
-                {totalVendorAdvance.toLocaleString(
-                  "en-IN"
-                )}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Remaining
-              </p>
-
-              <p className="mt-1 text-2xl font-bold">
-                ₹
-                {Math.max(
-                  0,
-                  remainingVendorPayment
-                ).toLocaleString("en-IN")}
+              <h2 className="text-2xl font-bold">
+                Overall Expense Analytics
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                All expenses combined from every event, separated into
+                budget, vendors and shopping.
               </p>
             </div>
           </div>
 
-          <div className="mt-6">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">
-                Payment progress
-              </span>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <MoneyCard
+              title="Total Expenses"
+              amount={totalExpenses}
+              description="Budget + vendors + shopping"
+            />
+            <MoneyCard
+              title="Total Paid"
+              amount={totalPaid}
+              description={`${percentage(totalPaid, totalExpenses)}% paid`}
+              positive
+            />
+            <MoneyCard
+              title="Total Balance"
+              amount={totalBalance}
+              description="Still outstanding"
+            />
+          </div>
 
-              <span className="font-bold">
-                {vendorPaymentProgress}%
+          <div className="mt-6">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Overall payment progress
+              </span>
+              <span className="font-semibold">
+                {percentage(totalPaid, totalExpenses)}%
               </span>
             </div>
-
-            <div className="mt-2 h-3 overflow-hidden rounded-full bg-muted">
+            <div className="h-3 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-orange-500"
+                className="h-full rounded-full bg-emerald-600"
                 style={{
-                  width: `${vendorPaymentProgress}%`,
+                  width: `${percentage(totalPaid, totalExpenses)}%`,
                 }}
               />
             </div>
           </div>
 
-          <div className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-
-            {fullyPaidVendors} of{" "}
-            {totalVendors} vendors fully paid
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <ExpenseSourceCard
+              title="Budget"
+              total={actualBudget}
+              paid={paidBudget}
+              icon={<Wallet className="h-5 w-5 text-emerald-600" />}
+            />
+            <ExpenseSourceCard
+              title="Vendors"
+              total={vendorTotal}
+              paid={vendorPaid}
+              icon={<Store className="h-5 w-5 text-blue-600" />}
+            />
+            <ExpenseSourceCard
+              title="Shopping"
+              total={shoppingTotal}
+              paid={shoppingPaid}
+              icon={<ShoppingBag className="h-5 w-5 text-orange-600" />}
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* ATTENTION */}
-
-      {(pendingGuests > 0 ||
-        pendingShoppingItems > 0 ||
-        pendingBudgetItems > 0 ||
-        remainingVendorPayment > 0) && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
-
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-start gap-3">
+            <BarChart3 className="mt-1 h-6 w-6 text-emerald-600" />
+            <div>
               <h2 className="text-2xl font-bold">
-                Items Needing Attention
+                Event Analytics
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Compare every event separately. Open any event for its
+                detailed analytics.
+              </p>
+            </div>
+          </div>
+
+          {analytics.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="mt-6 space-y-4">
+              {analytics.map((item) => (
+                <EventAnalyticsRow
+                  key={item.event.id}
+                  data={item}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PageHeader({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="flex items-start justify-between">
+      <div>
+        <h1 className="text-4xl font-bold">{title}</h1>
+        <p className="mt-2 text-muted-foreground">{subtitle}</p>
+      </div>
+      <BarChart3 className="h-7 w-7 text-emerald-600" />
+    </div>
+  );
+}
+
+function AllEventsSummary({
+  eventsCount,
+  totalExpenses,
+  totalPaid,
+  totalBalance,
+  planningProgress,
+  href,
+}: {
+  eventsCount: number;
+  totalExpenses: number;
+  totalPaid: number;
+  totalBalance: number;
+  planningProgress: number;
+  href: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">
+              All Events Overview
+            </p>
+            <h2 className="mt-1 text-2xl font-bold">
+              {eventsCount} event{eventsCount === 1 ? "" : "s"}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Overall expenses: {formatCurrency(totalExpenses)} · Paid:{" "}
+              {formatCurrency(totalPaid)} · Balance:{" "}
+              {formatCurrency(totalBalance)}
+            </p>
+          </div>
+
+          <a
+            href={href}
+            className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          >
+            View All Events Analytics
+          </a>
+        </div>
+
+        <div className="mt-5">
+          <div className="mb-2 flex justify-between text-sm">
+            <span className="text-muted-foreground">
+              Overall planning progress
+            </span>
+            <span className="font-semibold">
+              {planningProgress}%
+            </span>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-emerald-600"
+              style={{ width: `${planningProgress}%` }}
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EventAnalyticsView({
+  data,
+}: {
+  data: EventAnalytics;
+}) {
+  return (
+    <>
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Selected Event
+              </p>
+              <h2 className="mt-1 text-3xl font-bold">
+                {data.event.name}
               </h2>
             </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {pendingGuests > 0 && (
-                <div className="rounded-lg border p-4">
-                  <p className="font-medium">
-                    Guest RSVPs
-                  </p>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {pendingGuests} guests still pending.
-                  </p>
-                </div>
-              )}
-
-              {pendingShoppingItems > 0 && (
-                <div className="rounded-lg border p-4">
-                  <p className="font-medium">
-                    Shopping
-                  </p>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {pendingShoppingItems} items not purchased.
-                  </p>
-                </div>
-              )}
-
-              {pendingBudgetItems > 0 && (
-                <div className="rounded-lg border p-4">
-                  <p className="font-medium">
-                    Budget Payments
-                  </p>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {pendingBudgetItems} budget payments pending.
-                  </p>
-                </div>
-              )}
-
-              {remainingVendorPayment > 0 && (
-                <div className="rounded-lg border p-4">
-                  <p className="font-medium">
-                    Vendor Payments
-                  </p>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    ₹
-                    {remainingVendorPayment.toLocaleString(
-                      "en-IN"
-                    )}{" "}
-                    remaining.
-                  </p>
-                </div>
-              )}
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">
+                Event planning progress
+              </p>
+              <p className="mt-1 text-4xl font-bold text-emerald-600">
+                {data.overallProgress}%
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <div className="mt-5 h-3 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-emerald-600"
+              style={{ width: `${data.overallProgress}%` }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          title="Tasks"
+          value={`${data.completedTasks}/${data.tasks}`}
+          description={`${data.taskProgress}% completed`}
+          icon={<CheckCircle2 className="h-6 w-6 text-emerald-600" />}
+        />
+        <StatCard
+          title="Guests"
+          value={data.guests}
+          description={`${data.acceptedGuests} accepted`}
+          icon={<Users className="h-6 w-6 text-blue-600" />}
+        />
+        <StatCard
+          title="Budget"
+          value={formatCurrency(data.actualBudget)}
+          description={`${percentage(data.actualBudget, data.estimatedBudget)}% of estimate`}
+          icon={<Wallet className="h-6 w-6 text-emerald-600" />}
+        />
+        <StatCard
+          title="Shopping"
+          value={`${data.purchasedItems}/${data.shoppingItems}`}
+          description={`${data.shoppingProgress}% purchased`}
+          icon={<ShoppingBag className="h-6 w-6 text-purple-600" />}
+        />
+        <StatCard
+          title="Vendors"
+          value={data.vendors}
+          description={`${formatCurrency(data.vendorPaid)} paid`}
+          icon={<Store className="h-6 w-6 text-orange-600" />}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ProgressSection
+          title="Task Status"
+          subtitle="Task completion for this event."
+          customContent={
+            <div className="space-y-5">
+              <AnalyticsBar
+                label="Task completion"
+                value={data.taskProgress}
+                total={100}
+                color="bg-emerald-600"
+                suffix="%"
+              />
+            </div>
+          }
+        />
+
+        <ProgressSection
+          title="Guest RSVP"
+          subtitle="Response progress for this event."
+          customContent={
+            <div className="space-y-5">
+              <AnalyticsBar
+                label="Accepted"
+                value={data.acceptedGuests}
+                total={data.guests}
+                color="bg-emerald-600"
+              />
+              <AnalyticsBar
+                label="Responded"
+                value={data.respondedGuests}
+                total={data.guests}
+                color="bg-blue-600"
+              />
+              <AnalyticsBar
+                label="Pending response"
+                value={Math.max(0, data.guests - data.respondedGuests)}
+                total={data.guests}
+                color="bg-yellow-500"
+              />
+            </div>
+          }
+        />
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-2xl font-bold">
+            Expense Analytics — {data.event.name}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Expenses and payments for this event only.
+          </p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <MoneyCard
+              title="Total Expenses"
+              amount={data.totalExpense}
+              description="Budget + vendors + shopping"
+            />
+            <MoneyCard
+              title="Total Paid"
+              amount={data.totalPaid}
+              description={`${percentage(data.totalPaid, data.totalExpense)}% paid`}
+              positive
+            />
+            <MoneyCard
+              title="Balance"
+              amount={data.totalBalance}
+              description="Still outstanding"
+            />
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <ExpenseSourceCard
+              title="Budget"
+              total={data.actualBudget}
+              paid={data.paidBudget}
+              icon={<Wallet className="h-5 w-5 text-emerald-600" />}
+            />
+            <ExpenseSourceCard
+              title="Vendors"
+              total={data.vendorTotal}
+              paid={data.vendorPaid}
+              icon={<Store className="h-5 w-5 text-blue-600" />}
+            />
+            <ExpenseSourceCard
+              title="Shopping"
+              total={data.shoppingTotal}
+              paid={data.shoppingPaid}
+              icon={<ShoppingBag className="h-5 w-5 text-orange-600" />}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function ProgressSection({
+  title,
+  subtitle,
+  customContent,
+}: {
+  title: string;
+  subtitle: string;
+  customContent: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {subtitle}
+        </p>
+        <div className="mt-6">{customContent}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  description,
+  icon,
+}: {
+  title: string;
+  value: string | number;
+  description: string;
+  icon: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        {icon}
+        <p className="mt-4 text-sm text-muted-foreground">
+          {title}
+        </p>
+        <p className="mt-1 text-3xl font-bold">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {description}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MoneyCard({
+  title,
+  amount,
+  description,
+  positive = false,
+}: {
+  title: string;
+  amount: number;
+  description: string;
+  positive?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border p-5">
+      <p className="text-sm text-muted-foreground">{title}</p>
+      <p
+        className={`mt-1 text-3xl font-bold ${
+          positive ? "text-emerald-600" : ""
+        }`}
+      >
+        {formatCurrency(amount)}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {description}
+      </p>
     </div>
+  );
+}
+
+function ExpenseSourceCard({
+  title,
+  total,
+  paid,
+  icon,
+}: {
+  title: string;
+  total: number;
+  paid: number;
+  icon: ReactNode;
+}) {
+  const progress = percentage(paid, total);
+  const balance = Math.max(0, total - paid);
+
+  return (
+    <div className="rounded-xl border p-5">
+      <div className="flex items-center gap-2">
+        {icon}
+        <p className="font-semibold">{title}</p>
+      </div>
+
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs text-muted-foreground">Total</p>
+          <p className="text-xl font-bold">{formatCurrency(total)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Paid</p>
+          <p className="font-semibold text-emerald-600">
+            {formatCurrency(paid)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-emerald-600"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+        <span>{progress}% paid</span>
+        <span>Balance {formatCurrency(balance)}</span>
+      </div>
+    </div>
+  );
+}
+
+function EventAnalyticsRow({
+  data,
+}: {
+  data: EventAnalytics;
+}) {
+  return (
+    <a
+      href={`/dashboard/analytics?event=${data.event.id}`}
+      className="block rounded-xl border p-5 transition hover:bg-muted/40"
+    >
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-bold">
+            {data.event.name}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Planning progress {data.overallProgress}% ·{" "}
+            {data.completedTasks}/{data.tasks} tasks ·{" "}
+            {data.acceptedGuests}/{data.guests} guests accepted
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-5 text-right">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Expenses
+            </p>
+            <p className="font-semibold">
+              {formatCurrency(data.totalExpense)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Paid
+            </p>
+            <p className="font-semibold text-emerald-600">
+              {formatCurrency(data.totalPaid)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Balance
+            </p>
+            <p className="font-semibold">
+              {formatCurrency(data.totalBalance)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-emerald-600"
+          style={{
+            width: `${data.overallProgress}%`,
+          }}
+        />
+      </div>
+    </a>
   );
 }
 
@@ -1066,38 +1048,53 @@ function AnalyticsBar({
   value,
   total,
   color,
+  suffix,
 }: {
   label: string;
   value: number;
   total: number;
   color: string;
+  suffix?: string;
 }) {
-  const percentage =
-    total > 0
-      ? Math.round((value / total) * 100)
-      : 0;
+  const percent =
+    suffix === "%"
+      ? Math.min(100, Math.max(0, value))
+      : percentage(value, total);
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-sm">
         <span>{label}</span>
-
         <span className="font-medium">
-          {value}{" "}
-          <span className="text-muted-foreground">
-            ({percentage}%)
-          </span>
+          {suffix === "%" ? `${value}%` : value}
+          {suffix !== "%" && (
+            <span className="text-muted-foreground">
+              {" "}
+              ({percent}%)
+            </span>
+          )}
         </span>
       </div>
 
       <div className="h-3 overflow-hidden rounded-full bg-muted">
         <div
           className={`h-full rounded-full ${color}`}
-          style={{
-            width: `${percentage}%`,
-          }}
+          style={{ width: `${percent}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <BarChart3 className="mb-4 h-12 w-12 text-muted-foreground" />
+      <h3 className="text-xl font-bold">No events yet</h3>
+      <p className="mt-2 max-w-md text-sm text-muted-foreground">
+        Create an event first and its analytics will appear here
+        automatically.
+      </p>
     </div>
   );
 }

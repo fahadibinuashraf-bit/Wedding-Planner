@@ -7,21 +7,19 @@ import { revalidatePath } from "next/cache";
    ADD VENDOR
 ========================================================= */
 
-export async function addVendor(
-  formData: FormData
-) {
+export async function addVendor(formData: FormData) {
   const supabase = (await createClient()) as any;
 
   const eventId = String(
     formData.get("event_id") || ""
-  );
+  ).trim();
 
   const name = String(
     formData.get("name") || ""
   ).trim();
 
   const category = String(
-    formData.get("category") || "Other"
+    formData.get("category") || ""
   ).trim();
 
   const phone = String(
@@ -44,41 +42,46 @@ export async function addVendor(
     formData.get("rating") || ""
   ).trim();
 
-  const rating =
-    ratingValue === ""
-      ? null
-      : Number(ratingValue);
-
   const notes = String(
     formData.get("notes") || ""
   ).trim();
 
-  if (!eventId) {
+  if (!eventId || !name) {
     throw new Error(
-      "Event is required."
+      "Event and vendor name are required."
     );
   }
 
-  if (!name) {
-    throw new Error(
-      "Vendor name is required."
-    );
-  }
+  const rating =
+    ratingValue === ""
+      ? null
+      : Math.min(
+          5,
+          Math.max(
+            0,
+            Number(ratingValue) || 0
+          )
+        );
 
-  const { error } =
-    await supabase
-      .from("vendors")
-      .insert({
-        event_id: eventId,
-        name,
-        category,
-        phone: phone || null,
-        email: email || null,
-        total_amount: totalAmount,
-        advance_paid: advancePaid,
-        rating,
-        notes: notes || null,
-      });
+  const { error } = await supabase
+    .from("vendors")
+    .insert({
+      event_id: eventId,
+      name,
+      category: category || null,
+      phone: phone || null,
+      email: email || null,
+      total_amount: Math.max(
+        0,
+        totalAmount
+      ),
+      advance_paid: Math.max(
+        0,
+        advancePaid
+      ),
+      rating,
+      notes: notes || null,
+    });
 
   if (error) {
     console.error(
@@ -91,14 +94,10 @@ export async function addVendor(
     );
   }
 
-  revalidatePath(
-    "/dashboard/vendors"
-  );
-
+  revalidatePath("/dashboard/vendors");
   revalidatePath(
     `/dashboard/vendors?event=${eventId}`
   );
-
   revalidatePath("/dashboard");
 }
 
@@ -113,18 +112,18 @@ export async function updateVendor(
 
   const id = String(
     formData.get("id") || ""
-  );
+  ).trim();
 
   const eventId = String(
     formData.get("event_id") || ""
-  );
+  ).trim();
 
   const name = String(
     formData.get("name") || ""
   ).trim();
 
   const category = String(
-    formData.get("category") || "Other"
+    formData.get("category") || ""
   ).trim();
 
   const phone = String(
@@ -147,53 +146,49 @@ export async function updateVendor(
     formData.get("rating") || ""
   ).trim();
 
-  const rating =
-    ratingValue === ""
-      ? null
-      : Number(ratingValue);
-
   const notes = String(
     formData.get("notes") || ""
   ).trim();
 
-  if (!id) {
+  if (!id || !eventId || !name) {
     throw new Error(
-      "Vendor ID is required."
+      "Vendor ID, event and vendor name are required."
     );
   }
 
-  if (!eventId) {
-    throw new Error(
-      "Event is required."
-    );
-  }
+  const rating =
+    ratingValue === ""
+      ? null
+      : Math.min(
+          5,
+          Math.max(
+            0,
+            Number(ratingValue) || 0
+          )
+        );
 
-  if (!name) {
-    throw new Error(
-      "Vendor name is required."
-    );
-  }
-
-  const { error } =
-    await supabase
-      .from("vendors")
-      .update({
-        name,
-        category,
-        phone: phone || null,
-        email: email || null,
-        total_amount: totalAmount,
-        advance_paid: advancePaid,
-        rating,
-        notes: notes || null,
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq(
-        "event_id",
-        eventId
-      );
+  const { error } = await supabase
+    .from("vendors")
+    .update({
+      name,
+      category: category || null,
+      phone: phone || null,
+      email: email || null,
+      total_amount: Math.max(
+        0,
+        totalAmount
+      ),
+      advance_paid: Math.max(
+        0,
+        advancePaid
+      ),
+      rating,
+      notes: notes || null,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("event_id", eventId);
 
   if (error) {
     console.error(
@@ -206,15 +201,14 @@ export async function updateVendor(
     );
   }
 
-  revalidatePath(
-    "/dashboard/vendors"
-  );
-
+  revalidatePath("/dashboard/vendors");
   revalidatePath(
     `/dashboard/vendors?event=${eventId}`
   );
-
   revalidatePath("/dashboard");
+  revalidatePath(
+    `/dashboard?event=${eventId}`
+  );
 }
 
 /* =========================================================
@@ -227,27 +221,17 @@ export async function deleteVendor(
 ) {
   const supabase = (await createClient()) as any;
 
-  if (!id) {
+  if (!id || !eventId) {
     throw new Error(
-      "Vendor ID is required."
+      "Vendor ID and event ID are required."
     );
   }
 
-  if (!eventId) {
-    throw new Error(
-      "Event ID is required."
-    );
-  }
-
-  const { error } =
-    await supabase
-      .from("vendors")
-      .delete()
-      .eq("id", id)
-      .eq(
-        "event_id",
-        eventId
-      );
+  const { error } = await supabase
+    .from("vendors")
+    .delete()
+    .eq("id", id)
+    .eq("event_id", eventId);
 
   if (error) {
     console.error(
@@ -260,13 +244,12 @@ export async function deleteVendor(
     );
   }
 
-  revalidatePath(
-    "/dashboard/vendors"
-  );
-
+  revalidatePath("/dashboard/vendors");
   revalidatePath(
     `/dashboard/vendors?event=${eventId}`
   );
-
   revalidatePath("/dashboard");
+  revalidatePath(
+    `/dashboard?event=${eventId}`
+  );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+
 import {
   ArrowRight,
   Building2,
@@ -6,15 +7,27 @@ import {
   CircleDollarSign,
   Phone,
   Plus,
+  Pencil,
   Store,
   Wallet,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 
-import { addVendor, deleteVendor } from "./actions";
+import {
+  addVendor,
+  deleteVendor,
+  updateVendor,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -62,13 +75,8 @@ export default async function VendorsPage({
   const eventId =
     params.event || "";
 
-  /*
-   * Cast Supabase client to any.
-   *
-   * This avoids the "never" inference errors caused by
-   * incomplete/generated Supabase database types.
-   */
-  const supabase = (await createClient()) as any;
+  const supabase =
+    (await createClient()) as any;
 
   /* =======================================================
      EVENTS
@@ -108,7 +116,9 @@ export default async function VendorsPage({
      SELECT EVENT
   ======================================================= */
 
-  const selectedEvent: EventData | null =
+  const selectedEvent:
+    | EventData
+    | null =
     eventId
       ? events.find(
           (event) =>
@@ -259,18 +269,20 @@ export default async function VendorsPage({
       0
     );
 
-  const remaining =
-    Math.max(
-      0,
-      totalCost - advancePaid
-    );
+  const remaining = Math.max(
+    0,
+    totalCost - advancePaid
+  );
 
   const paymentProgress =
     totalCost > 0
-      ? Math.round(
-          (advancePaid /
-            totalCost) *
-            100
+      ? Math.min(
+          100,
+          Math.round(
+            (advancePaid /
+              totalCost) *
+              100
+          )
         )
       : 0;
 
@@ -278,11 +290,14 @@ export default async function VendorsPage({
     vendors.filter(
       (vendor) =>
         Number(
+          vendor.total_amount || 0
+        ) > 0 &&
+        Number(
           vendor.advance_paid || 0
         ) >=
-        Number(
-          vendor.total_amount || 0
-        )
+          Number(
+            vendor.total_amount || 0
+          )
     ).length;
 
   /* =======================================================
@@ -309,8 +324,7 @@ export default async function VendorsPage({
       return "No date";
     }
 
-    const date =
-      new Date(value);
+    const date = new Date(value);
 
     if (
       Number.isNaN(
@@ -386,9 +400,7 @@ export default async function VendorsPage({
 
   return (
     <div className="space-y-6">
-      {/* ===================================================
-          HEADER
-      =================================================== */}
+      {/* HEADER */}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
@@ -425,9 +437,7 @@ export default async function VendorsPage({
         </Link>
       </div>
 
-      {/* ===================================================
-          EVENT SELECTOR
-      =================================================== */}
+      {/* EVENT SELECTOR */}
 
       {events.length > 1 && (
         <Card>
@@ -461,6 +471,12 @@ export default async function VendorsPage({
                             ? "default"
                             : "outline"
                         }
+                        className={
+                          event.id ===
+                          selectedEventId
+                            ? "bg-emerald-600 hover:bg-emerald-700"
+                            : ""
+                        }
                       >
                         {event.name}
                       </Button>
@@ -473,9 +489,7 @@ export default async function VendorsPage({
         </Card>
       )}
 
-      {/* ===================================================
-          STATS
-      =================================================== */}
+      {/* STATS */}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -519,9 +533,7 @@ export default async function VendorsPage({
         />
       </div>
 
-      {/* ===================================================
-          PAYMENT PROGRESS
-      =================================================== */}
+      {/* PAYMENT PROGRESS */}
 
       <Card>
         <CardHeader>
@@ -583,9 +595,7 @@ export default async function VendorsPage({
         </CardContent>
       </Card>
 
-      {/* ===================================================
-          ADD VENDOR
-      =================================================== */}
+      {/* ADD VENDOR */}
 
       <Card>
         <CardHeader>
@@ -605,119 +615,71 @@ export default async function VendorsPage({
               value={selectedEventId}
             />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Vendor Name
-              </label>
+            <VendorInput
+              label="Vendor Name"
+              name="name"
+              required
+              placeholder="Photography Studio"
+            />
 
-              <input
-                name="name"
-                required
-                placeholder="Photography Studio"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
+            <VendorInput
+              label="Category"
+              name="category"
+              placeholder="Photography"
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Category
-              </label>
+            <VendorInput
+              label="Phone"
+              name="phone"
+              type="tel"
+              placeholder="+91 XXXXX XXXXX"
+            />
 
-              <input
-                name="category"
-                placeholder="Photography"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
+            <VendorInput
+              label="Email"
+              name="email"
+              type="email"
+              placeholder="vendor@example.com"
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Phone
-              </label>
+            <VendorInput
+              label="Total Amount"
+              name="total_amount"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="50000"
+            />
 
-              <input
-                name="phone"
-                type="tel"
-                placeholder="+91 XXXXX XXXXX"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
+            <VendorInput
+              label="Advance Paid"
+              name="advance_paid"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="10000"
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Email
-              </label>
+            <VendorInput
+              label="Rating"
+              name="rating"
+              type="number"
+              min="0"
+              max="5"
+              step="0.1"
+              placeholder="4.5"
+            />
 
-              <input
-                name="email"
-                type="email"
-                placeholder="vendor@example.com"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Total Amount
-              </label>
-
-              <input
-                name="total_amount"
-                type="number"
-                min="0"
-                step="1"
-                placeholder="50000"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Advance Paid
-              </label>
-
-              <input
-                name="advance_paid"
-                type="number"
-                min="0"
-                step="1"
-                placeholder="10000"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Rating
-              </label>
-
-              <input
-                name="rating"
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
-                placeholder="4.5"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Notes
-              </label>
-
-              <input
-                name="notes"
-                placeholder="Additional details"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
+            <VendorInput
+              label="Notes"
+              name="notes"
+              placeholder="Additional details"
+            />
 
             <div className="md:col-span-2">
               <Button
                 type="submit"
-                className="w-full md:w-auto"
+                className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Vendor
@@ -727,9 +689,7 @@ export default async function VendorsPage({
         </CardContent>
       </Card>
 
-      {/* ===================================================
-          VENDOR LIST
-      =================================================== */}
+      {/* VENDOR LIST */}
 
       <div>
         <div className="mb-4 flex items-end justify-between">
@@ -924,7 +884,7 @@ export default async function VendorsPage({
 
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
                           <div
-                            className="h-full rounded-full bg-emerald-600"
+                            className="h-full rounded-full bg-emerald-600 transition-all"
                             style={{
                               width: `${vendorProgress}%`,
                             }}
@@ -948,9 +908,9 @@ export default async function VendorsPage({
                         </div>
                       )}
 
-                      {/* FOOTER */}
+                      {/* ACTIONS */}
 
-                      <div className="mt-5 flex items-center justify-between border-t pt-4">
+                      <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
                         <p className="text-xs text-muted-foreground">
                           Added{" "}
                           {formatDate(
@@ -958,18 +918,15 @@ export default async function VendorsPage({
                           )}
                         </p>
 
-                        <div className="flex items-center gap-2">
-                          <form
-                            action={
-                              async () => {
-                                "use server";
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* DELETE */}
 
-                                await deleteVendor(
-                                  vendor.id,
-                                  selectedEventId
-                                );
-                              }
-                            }
+                          <form
+                            action={deleteVendor.bind(
+                              null,
+                              vendor.id,
+                              selectedEventId
+                            )}
                           >
                             <Button
                               type="submit"
@@ -981,19 +938,134 @@ export default async function VendorsPage({
                             </Button>
                           </form>
 
-                          <Link
-                            href={`/dashboard/vendors?event=${encodeURIComponent(
-                              selectedEventId
-                            )}`}
-                          >
-                            <Button
-                              variant="outline"
-                              size="sm"
-                            >
-                              View
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </Link>
+                          {/* EDIT */}
+
+                          <details className="group">
+                            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted">
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </summary>
+
+                            <div className="mt-4 w-full rounded-xl border bg-muted/20 p-4">
+                              <form
+                                action={
+                                  updateVendor
+                                }
+                                className="grid gap-4 sm:grid-cols-2"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="id"
+                                  value={
+                                    vendor.id
+                                  }
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="event_id"
+                                  value={
+                                    selectedEventId
+                                  }
+                                />
+
+                                <VendorInput
+                                  label="Vendor Name"
+                                  name="name"
+                                  required
+                                  defaultValue={
+                                    vendor.name
+                                  }
+                                />
+
+                                <VendorInput
+                                  label="Category"
+                                  name="category"
+                                  defaultValue={
+                                    vendor.category ||
+                                    ""
+                                  }
+                                />
+
+                                <VendorInput
+                                  label="Phone"
+                                  name="phone"
+                                  type="tel"
+                                  defaultValue={
+                                    vendor.phone ||
+                                    ""
+                                  }
+                                />
+
+                                <VendorInput
+                                  label="Email"
+                                  name="email"
+                                  type="email"
+                                  defaultValue={
+                                    vendor.email ||
+                                    ""
+                                  }
+                                />
+
+                                <VendorInput
+                                  label="Total Amount"
+                                  name="total_amount"
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  defaultValue={String(
+                                    total
+                                  )}
+                                />
+
+                                <VendorInput
+                                  label="Advance Paid"
+                                  name="advance_paid"
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  defaultValue={String(
+                                    paid
+                                  )}
+                                />
+
+                                <VendorInput
+                                  label="Rating"
+                                  name="rating"
+                                  type="number"
+                                  min="0"
+                                  max="5"
+                                  step="0.1"
+                                  defaultValue={
+                                    vendor.rating !=
+                                    null
+                                      ? String(
+                                          vendor.rating
+                                        )
+                                      : ""
+                                  }
+                                />
+
+                                <VendorInput
+                                  label="Notes"
+                                  name="notes"
+                                  defaultValue={
+                                    vendor.notes ||
+                                    ""
+                                  }
+                                />
+
+                                <div className="flex gap-2 sm:col-span-2">
+                                  <Button
+                                    type="submit"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                  >
+                                    Save Changes
+                                  </Button>
+                                </div>
+                              </form>
+                            </div>
+                          </details>
                         </div>
                       </div>
                     </CardContent>
@@ -1062,6 +1134,52 @@ function MoneyBox({
       <p className="mt-1 text-sm font-semibold">
         {value}
       </p>
+    </div>
+  );
+}
+
+/* =========================================================
+   VENDOR INPUT
+========================================================= */
+
+function VendorInput({
+  label,
+  name,
+  type = "text",
+  placeholder,
+  defaultValue,
+  required = false,
+  min,
+  max,
+  step,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  required?: boolean;
+  min?: string;
+  max?: string;
+  step?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">
+        {label}
+      </label>
+
+      <input
+        name={name}
+        type={type}
+        placeholder={placeholder}
+        defaultValue={defaultValue}
+        required={required}
+        min={min}
+        max={max}
+        step={step}
+        className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-emerald-500"
+      />
     </div>
   );
 }
